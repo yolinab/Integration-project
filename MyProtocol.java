@@ -1,12 +1,7 @@
+import Network.Node;
 import client.*;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.ByteBuffer;
-import java.io.Console;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 /**
 * This is just some example code to show you how to interact 
@@ -21,99 +16,18 @@ public class MyProtocol{
     // The port to connect to. 8954 for the simulation server.
     private static int SERVER_PORT = 8954;
     // The frequency to use.
-    private static int frequency = 5300; //TODO: Set this to your group frequency!
+    private static int frequency = 5300;
 
     private BlockingQueue<Message> receivedQueue;
     private BlockingQueue<Message> sendingQueue;
-//    private BlockingQueue<Message> forwardingQueue;
-//    private
 
     public MyProtocol(String server_ip, int server_port, int frequency){
-        receivedQueue = new LinkedBlockingQueue<Message>();
-        sendingQueue = new LinkedBlockingQueue<Message>();
-//        forwardingQueue = new LinkedBlockingQueue<Message>();//
 
-        new Client(SERVER_IP, SERVER_PORT, frequency, receivedQueue, sendingQueue); // Give the client the Queues to use
-
-        new receiveThread(receivedQueue).start(); // Start thread to handle received messages!
-
-        // handle sending from stdin from this thread.
-        try{
-            BufferedReader inp = new BufferedReader(new InputStreamReader(System.in));
-//            Console console = System.console();
-            String input = "";
-            while(true){
-                input = inp.readLine(); // read input
-                byte[] inputBytes = input.getBytes(); // get bytes from input
-                ByteBuffer toSend = ByteBuffer.allocate(inputBytes.length); // make a new byte buffer with the length of the input string
-                toSend.put( inputBytes, 0, inputBytes.length ); // copy the input string into the byte buffer.                   
-                Message msg;
-                if( (input.length()) > 2 ){
-                    msg = new Message(MessageType.DATA, toSend);
-                } else {
-                    msg = new Message(MessageType.DATA_SHORT, toSend);
-                }
-                sendingQueue.put(msg);
-            }
-        } catch (InterruptedException e){
-            System.exit(2);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 
     public static void main(String args[]) {
-        if(args.length > 0){
-            frequency = Integer.parseInt(args[0]);
-        }
-        new MyProtocol(SERVER_IP, SERVER_PORT, frequency);        
+        new Node();
     }
 
-    private class receiveThread extends Thread {
-        private BlockingQueue<Message> receivedQueue;
-
-        public receiveThread(BlockingQueue<Message> receivedQueue){
-            super();
-            this.receivedQueue = receivedQueue;
-        }
-
-        public void printByteBuffer(ByteBuffer bytes, int bytesLength){
-            for(int i=0; i<bytesLength; i++){
-                System.out.print( Byte.toString( bytes.get(i) )+" " );
-            }
-            System.out.println();
-        }
-
-        // Handle messages from the server / audio framework
-        public void run(){
-            while(true) {
-                try{
-                    Message m = receivedQueue.take();
-                    if (m.getType() == MessageType.BUSY){ // The channel is busy (A node is sending within our detection range)
-                        System.out.println("BUSY");
-                    } else if (m.getType() == MessageType.FREE){ // The channel is no longer busy (no nodes are sending within our detection range)
-                        System.out.println("FREE");
-                    } else if (m.getType() == MessageType.DATA){ // We received a data frame!
-                        System.out.print("DATA: ");
-                        printByteBuffer( m.getData(), m.getData().capacity() ); //Just print the data
-                    } else if (m.getType() == MessageType.DATA_SHORT){ // We received a short data frame!
-                        System.out.print("DATA_SHORT: ");
-                        printByteBuffer( m.getData(), m.getData().capacity() ); //Just print the data
-                    } else if (m.getType() == MessageType.DONE_SENDING){ // This node is done sending
-                        System.out.println("DONE_SENDING");
-                    } else if (m.getType() == MessageType.HELLO){ // Server / audio framework hello message. You don't have to handle this
-                        System.out.println("HELLO");
-                    } else if (m.getType() == MessageType.SENDING){ // This node is sending
-                        System.out.println("SENDING");
-                    } else if (m.getType() == MessageType.END){ // Server / audio framework disconnect message. You don't have to handle this
-                        System.out.println("END");
-                        System.exit(0);
-                    }
-                } catch (InterruptedException e){
-                    System.err.println("Failed to take from queue: "+e);
-                }                
-            }
-        }
-    }
 }
 

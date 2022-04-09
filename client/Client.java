@@ -4,8 +4,12 @@ import java.nio.channels.SocketChannel;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 
+/**
+ * Class for handling communication with server
+ */
 
 public class Client {
     
@@ -23,6 +27,7 @@ public class Client {
     }
 
     public Client(String server_ip, int server_port, int frequency, BlockingQueue<Message> receivedQueue, BlockingQueue<Message> sendingQueue){
+
         this.receivedQueue = receivedQueue;
         this.sendingQueue = sendingQueue;
         SocketChannel sock;
