@@ -1,5 +1,6 @@
 package Network;
 
+import Packets.DiscoveryPacket;
 import client.Client;
 import client.Message;
 import client.MessageType;
@@ -20,6 +21,11 @@ public class Node {
     private static int SERVER_PORT = 8954;
     private static int frequency = 5300;
 
+    public BlockingQueue<Message> dataQueue;
+    public BlockingQueue<Message> shortDataQueue;
+    public BlockingQueue<Message> mediumState;
+    public BlockingQueue<Message> nodeBuffer;
+
     private BlockingQueue<Message> receivedQueue;
     private BlockingQueue<Message> sendingQueue;
 
@@ -28,81 +34,100 @@ public class Node {
         receivedQueue = new LinkedBlockingQueue<Message>();
         sendingQueue = new LinkedBlockingQueue<Message>();
 
+
         new Client(SERVER_IP, SERVER_PORT, frequency, receivedQueue, sendingQueue); // Give the client the Queues to use
+
+        DiscoveryPacket discoveryPacket = new DiscoveryPacket(this.getIp());
+        discoveryPacket.makeSYN();
+        Message msg = new Message(MessageType.DATA_SHORT, discoveryPacket.getByteBuffer());
+
+
+        new transmitThread(sendingQueue, msg).start();
         new receiveThread(receivedQueue).start(); // Start thread to handle received messages!
-        new sendingThread(sendingQueue);
-        sendMessage();
+
+//        try {
+//            if (mediumState.peek().getType().equals(MessageType.FREE) || mediumState.peek().getType().equals(MessageType.HELLO)) {
+//                sendDiscoveryMessage();
+//            }
+//        } catch (NullPointerException e) {
+//            System.err.println(e);
+//        }
+
+
+        //sent discovery message as soon as object is initialised, so there are no collisions?
     }
 
-
+    //we assume since this method gets invoked only once in the beginning,
+    //there will be no collisions(hoping the propagation time for DATA_SHORT is fast enough)
+    //asserTrue (time between node initialisations > propagation time of DATA_SHORT)
     public void sendDiscoveryMessage() {
-
-    }
-
-    public void sendMessage() {
-        try{
-            BufferedReader inp = new BufferedReader(new InputStreamReader(System.in));
-            String input = "";
-            while(true){
-                input = inp.readLine(); // read input
-                byte[] inputBytes = input.getBytes(); // get bytes from input
-                ByteBuffer toSend = ByteBuffer.allocate(inputBytes.length); // make a new byte buffer with the length of the input string
-                toSend.put( inputBytes, 0, inputBytes.length ); // copy the input string into the byte buffer.
-                Message msg;
-                if( (input.length()) > 2 ){
-                    msg = new Message(MessageType.DATA, toSend);
-                } else {
-                    msg = new Message(MessageType.DATA_SHORT, toSend);
-                }
-                sendingQueue.put(msg);
-            }
-        } catch (InterruptedException e){
-            System.exit(2);
-        } catch (IOException e) {
-            e.printStackTrace();
+        DiscoveryPacket discoveryPacket = new DiscoveryPacket(this.getIp());
+        discoveryPacket.makeSYN();
+        try {
+            sendingQueue.put(new Message(MessageType.DATA_SHORT, discoveryPacket.getByteBuffer()));
+        } catch (InterruptedException e) {
+            System.err.println("Failed to send discovery message.");
         }
     }
 
-    private class sendingThread extends Thread {
+    //For now only works with console input
+    private  class transmitThread extends Thread {
         private BlockingQueue<Message> sendingQueue;
+        private Message message;
 
-        public sendingThread(BlockingQueue<Message> sendingQueue) {
+        public transmitThread(BlockingQueue<Message> sendingQueue, Message message){
             super();
             this.sendingQueue = sendingQueue;
+            this.message = message;
+        }
+
+        private void putMessageInQueue(Message message) {
+            try {
+                sendingQueue.put(message);
+            } catch (InterruptedException e) {
+                System.err.println("Failed to put message in sending queue." + e);
+            }
+
         }
 
         public void run() {
-            try{
+//            while (true) {
+//                try {
+//                    sendingQueue.put(consoleInput());
+//                } catch (InterruptedException e) {
+//                    System.err.println("Failed to send message. " + e);
+//                }
+                putMessageInQueue(message);
+//            }
+        }
+
+        private Message consoleInput() {
+            try {
                 BufferedReader inp = new BufferedReader(new InputStreamReader(System.in));
                 String input = "";
-                while(true){
+                while (true) {
                     input = inp.readLine(); // read input
                     byte[] inputBytes = input.getBytes(); // get bytes from input
                     ByteBuffer toSend = ByteBuffer.allocate(inputBytes.length); // make a new byte buffer with the length of the input string
-                    toSend.put( inputBytes, 0, inputBytes.length ); // copy the input string into the byte buffer.
+                    toSend.put(inputBytes, 0, inputBytes.length); // copy the input string into the byte buffer.
                     Message msg;
-                    if( (input.length()) > 2 ){
+                    if ((input.length()) > 2) {
                         msg = new Message(MessageType.DATA, toSend);
                     } else {
                         msg = new Message(MessageType.DATA_SHORT, toSend);
                     }
-                    sendingQueue.put(msg);
+                    return msg;
                 }
-            } catch (InterruptedException e){
-                System.exit(2);
             } catch (IOException e) {
-                e.printStackTrace();
+                System.err.println("Failed to get input from the console. " + e);
             }
+            //DANGER!!!//TODO fix this shit
+            return null;
         }
     }
 
-
     private class receiveThread extends Thread {
         private BlockingQueue<Message> receivedQueue;
-        private BlockingQueue<Message> dataQueue;
-        private BlockingQueue<Message> shortDataQueue;
-        private BlockingQueue<Message> mediumState;
-
 
         public receiveThread(BlockingQueue<Message> receivedQueue){
             super();
@@ -112,29 +137,13 @@ public class Node {
             mediumState = new LinkedBlockingQueue<>();
         }
 
-        public BlockingQueue<Message> getDataQueue() {
-            return dataQueue;
-        }
-
-        public BlockingQueue<Message> getShortDataQueue() {
-            return shortDataQueue;
-        }
-
-
         public void printByteBuffer(ByteBuffer bytes, int bytesLength){
             for(int i=0; i<bytesLength; i++){
-                System.out.print( (char) ( bytes.get(i) ) );
+//                System.out.print( (char) ( bytes.get(i) ) );
+                System.out.println(String.format("%8s",Integer.toBinaryString(bytes.get(i))).replace(' ','0'));
+
             }
             System.out.println();
-        }
-
-        /**
-         * Checks whether the last state of the medium is "FREE"
-         * @return true if the channel is available to use
-         */
-        public boolean channelIsFree() {
-            //if the last received message in the stack is "FREE", then we are able to send data
-            return mediumState.peek().getType().equals(MessageType.FREE);
         }
 
         //print received messages
@@ -174,6 +183,14 @@ public class Node {
                     System.err.println("Failed to take from queue: "+e);
                 }
             }
+        }
+        /**
+         * Checks whether the last state of the medium is "FREE"
+         * @return true if the channel is available to use
+         */
+        public boolean channelIsFree() {
+            //if the last received message in the stack is "FREE", then we are able to send data
+            return mediumState.peek().getType().equals(MessageType.FREE);
         }
     }
 
