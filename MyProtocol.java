@@ -19,7 +19,7 @@ public class MyProtocol{
     }
 
     public void discoverNeighbours() {
-
+        
     }
 
     public static void main(String args[]) {
