@@ -8,5 +8,5 @@ public enum MessageType {
     DONE_SENDING,
     DATA_SHORT,
     END,
-    HELLO
+    HELLO,
 }

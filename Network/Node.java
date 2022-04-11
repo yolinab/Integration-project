@@ -9,6 +9,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -24,81 +25,72 @@ public class Node {
     public BlockingQueue<Message> dataQueue;
     public BlockingQueue<Message> shortDataQueue;
     public BlockingQueue<Message> mediumState;
-    public BlockingQueue<Message> nodeBuffer;
+
+    public ArrayList<Byte> neighbours;
+
+    public Message discoveryMessage;
 
     private BlockingQueue<Message> receivedQueue;
     private BlockingQueue<Message> sendingQueue;
 
     public Node() {
         ip = (new Random().nextInt((int) System.currentTimeMillis())) % 64;
+
         receivedQueue = new LinkedBlockingQueue<Message>();
         sendingQueue = new LinkedBlockingQueue<Message>();
+        mediumState = new LinkedBlockingQueue<Message>();
+        //TODO:initialise all
 
+        neighbours = new ArrayList<>(3);
 
         new Client(SERVER_IP, SERVER_PORT, frequency, receivedQueue, sendingQueue); // Give the client the Queues to use
 
-        DiscoveryPacket discoveryPacket = new DiscoveryPacket(this.getIp());
-        discoveryPacket.makeSYN();
-        Message msg = new Message(MessageType.DATA_SHORT, discoveryPacket.getByteBuffer());
 
-
-        new transmitThread(sendingQueue, msg).start();
         new receiveThread(receivedQueue).start(); // Start thread to handle received messages!
 
-//        try {
-//            if (mediumState.peek().getType().equals(MessageType.FREE) || mediumState.peek().getType().equals(MessageType.HELLO)) {
-//                sendDiscoveryMessage();
-//            }
-//        } catch (NullPointerException e) {
-//            System.err.println(e);
-//        }
-
-
-        //sent discovery message as soon as object is initialised, so there are no collisions?
-    }
-
-    //we assume since this method gets invoked only once in the beginning,
-    //there will be no collisions(hoping the propagation time for DATA_SHORT is fast enough)
-    //asserTrue (time between node initialisations > propagation time of DATA_SHORT)
-    public void sendDiscoveryMessage() {
-        DiscoveryPacket discoveryPacket = new DiscoveryPacket(this.getIp());
+        DiscoveryPacket discoveryPacket = new DiscoveryPacket(this.getIp());                        //creates discovery packet upon initialization
         discoveryPacket.makeSYN();
-        try {
-            sendingQueue.put(new Message(MessageType.DATA_SHORT, discoveryPacket.getByteBuffer()));
-        } catch (InterruptedException e) {
-            System.err.println("Failed to send discovery message.");
-        }
+
+        discoveryMessage = discoveryPacket.convertToMessage();
+
+        new transmitThread(sendingQueue).start();
+
     }
+
+    //asserTrue (time between node initialisations > propagation time of DATA_SHORT)
+//    public void sendDiscoveryMessage() {
+//        try {
+//            sendingQueue.put(discoveryMessage);
+//        } catch (InterruptedException e) {
+//            System.err.println("Failed to put discovery message in sending queue." + e);
+//        }
+//    }
+
+//    public void respondToDiscoveryMsg(DiscoveryPacket discoveryMessage) {
+//        neighbours.add(discoveryMessage.getByteBuffer().get(0));
+//        discoveryMessage.respond(getIp());
+//    }
 
     //For now only works with console input
     private  class transmitThread extends Thread {
         private BlockingQueue<Message> sendingQueue;
         private Message message;
 
-        public transmitThread(BlockingQueue<Message> sendingQueue, Message message){
+        public transmitThread(BlockingQueue<Message> sendingQueue){
             super();
             this.sendingQueue = sendingQueue;
-            this.message = message;
         }
 
-        private void putMessageInQueue(Message message) {
+        private void putMessageInQueue() {
             try {
-                sendingQueue.put(message);
+                sendingQueue.put(discoveryMessage);
             } catch (InterruptedException e) {
                 System.err.println("Failed to put message in sending queue." + e);
             }
-
         }
 
         public void run() {
-//            while (true) {
-//                try {
-//                    sendingQueue.put(consoleInput());
-//                } catch (InterruptedException e) {
-//                    System.err.println("Failed to send message. " + e);
-//                }
-                putMessageInQueue(message);
-//            }
+                putMessageInQueue();
         }
 
         private Message consoleInput() {
@@ -141,7 +133,6 @@ public class Node {
             for(int i=0; i<bytesLength; i++){
 //                System.out.print( (char) ( bytes.get(i) ) );
                 System.out.println(String.format("%8s",Integer.toBinaryString(bytes.get(i))).replace(' ','0'));
-
             }
             System.out.println();
         }
@@ -154,7 +145,9 @@ public class Node {
                     if (m.getType() == MessageType.BUSY){ // The channel is busy (A node is sending within our detection range)
                         System.out.println("BUSY");
                         mediumState.put(m);
-                    } else if (m.getType() == MessageType.FREE){ // The channel is no longer busy (no nodes are sending within our detection range)
+
+                    }
+                    else if (m.getType() == MessageType.FREE){ // The channel is no longer busy (no nodes are sending within our detection range)
                         System.out.println("FREE");
                         mediumState.put(m);
                     } else if (m.getType() == MessageType.DATA){ // We received a data frame!
@@ -169,12 +162,22 @@ public class Node {
                         printByteBuffer( m.getData(), m.getData().capacity() ); //Just print the data
                         shortDataQueue.put(m);
 
+                        if (m.getData().get(1) % 64 == 0) {         //only if is SYN, send a response
+                            ByteBuffer receivedBuffer = m.getData();
+                            receivedBuffer.put(1, (byte) ((receivedBuffer.get(1) + getIp()) - 64));//add the IP and remove SYN flag
+                            Message msg = new Message(MessageType.DATA_SHORT, receivedBuffer);
+                            sendingQueue.put(msg);
+                            printByteBuffer(receivedBuffer,2);
+                        }
+
                     } else if (m.getType() == MessageType.DONE_SENDING){ // This node is done sending
-                        System.out.println("DONE_SENDING");
+                        System.out.println("DONE_SENDING " + getIp());
                     } else if (m.getType() == MessageType.HELLO){ // Server / audio framework hello message. You don't have to handle this
                         System.out.println("HELLO");
+
+                        mediumState.put(m);
                     } else if (m.getType() == MessageType.SENDING){ // This node is sending
-                        System.out.println("SENDING");
+                        System.out.println("SENDING " + getIp());
                     } else if (m.getType() == MessageType.END){ // Server / audio framework disconnect message. You don't have to handle this
                         System.out.println("END");
                         System.exit(0);
@@ -184,18 +187,18 @@ public class Node {
                 }
             }
         }
-        /**
-         * Checks whether the last state of the medium is "FREE"
-         * @return true if the channel is available to use
-         */
-        public boolean channelIsFree() {
-            //if the last received message in the stack is "FREE", then we are able to send data
-            return mediumState.peek().getType().equals(MessageType.FREE);
-        }
+//        /**
+//         * Checks whether the last state of the medium is "FREE"
+//         * @return true if the channel is available to use
+//         */
+//        public boolean channelIsFree() {
+//            //if the last received message in the stack is "FREE", then we are able to send data
+//            return mediumState.peek().getType().equals(MessageType.FREE);
+//        }
     }
 
     public int getIp() {
         return ip;
     }
-
 }
+
