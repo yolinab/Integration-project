@@ -131,8 +131,8 @@ public class Node {
 
         public void printByteBuffer(ByteBuffer bytes, int bytesLength){
             for(int i=0; i<bytesLength; i++){
-//                System.out.print( (char) ( bytes.get(i) ) );
-                System.out.println(String.format("%8s",Integer.toBinaryString(bytes.get(i))).replace(' ','0'));
+                System.out.print(  ( bytes.get(i) ) );
+//                System.out.println(String.format("%8s",Integer.toBinaryString(bytes.get(i))).replace(' ','0'));
             }
             System.out.println();
         }
@@ -163,10 +163,19 @@ public class Node {
                         shortDataQueue.put(m);
 
                         if (m.getData().get(1) % 64 == 0) {         //only if is SYN, send a response
+
                             ByteBuffer receivedBuffer = m.getData();
+                            neighbours.add(receivedBuffer.get(0));
+
                             receivedBuffer.put(1, (byte) ((receivedBuffer.get(1) + getIp()) - 64));//add the IP and remove SYN flag
                             Message msg = new Message(MessageType.DATA_SHORT, receivedBuffer);
                             sendingQueue.put(msg);
+
+
+                            for (int i = 0; i < neighbours.size(); i++) {
+                                System.out.println("The neighbours of " + getIp() + " are " + neighbours.get(i));
+                            }
+
                             printByteBuffer(receivedBuffer,2);
                         }
 
