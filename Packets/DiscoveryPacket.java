@@ -1,5 +1,8 @@
 package Packets;
 
+import client.Message;
+import client.MessageType;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
@@ -13,7 +16,7 @@ public class DiscoveryPacket implements Packet {
 
     private int sourceIp;
     private ByteBuffer buffer;
-    private ArrayList<Integer> neighbourIPs;
+//    private ArrayList<Byte> neighbours;
 
     /*
                  Source           Flag(SYN/ACK)   Receiver puts their IP here
@@ -26,7 +29,7 @@ public class DiscoveryPacket implements Packet {
         super();
         this.sourceIp = sourceIP;
         buffer = ByteBuffer.allocate(2);
-        neighbourIPs = new ArrayList<>(3);
+//        neighbours = new ArrayList<>(3);
     }
 
     /**
@@ -48,7 +51,7 @@ public class DiscoveryPacket implements Packet {
     //@requires ip != 0;
     public void respond(int ip) {
         buffer.put(1, (byte) ((buffer.get(1) + ip) - 64));//add the IP and remove SYN flag
-        neighbourIPs.add(ip);
+//        neighbours.add((byte)ip);
     }
 
     /**
@@ -69,6 +72,24 @@ public class DiscoveryPacket implements Packet {
     //@requires buffer != null;
     public boolean isACKed() {
         return buffer.get(1) < 64;
+    }
+
+
+    /**
+     * Retrieves the list of all the nodes who responded to the initial discovery message
+     * @return the list of direct neighbours
+     */
+//    public ArrayList<Byte> getNeighbours() {
+//        return neighbours;
+//    }
+
+    /**
+     * Encapsulates the discovery packet in a Message Type
+     * @return the discovery packet in a form of a MessageType.DATA_SHORT
+     */
+    public Message convertToMessage() {
+//        return new Message(MessageType.DATA_SHORT,buffer);
+        return new Message(MessageType.DATA_SHORT,buffer);
     }
 
 }
