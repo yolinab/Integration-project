@@ -5,11 +5,8 @@ import client.Client;
 import client.Message;
 import client.MessageType;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -25,11 +22,9 @@ public class Node {
 
     public BlockingQueue<Message> receivedDataQueue;
     public BlockingQueue<Message> receivedShortDataQueue;
-//    public BlockingQueue<Message> mediumState;
-
     public BlockingQueue<Message> ACKsToSend;
 
-    public ArrayList<Byte> neighbours;
+    public HashMap<Byte,Byte> neighbours; //key - the IP of the neighbour | value - the IP of the next hop
 
     public Message discoveryMessage;
 
@@ -41,29 +36,29 @@ public class Node {
 
         receivedQueue = new LinkedBlockingQueue<Message>();
         sendingQueue = new LinkedBlockingQueue<Message>();
-//        mediumState = new LinkedBlockingQueue<Message>();
         ACKsToSend = new LinkedBlockingQueue<Message>();
         mediumIsFree = false;
-
-        neighbours = new ArrayList<>(3);
+        neighbours = new HashMap<>(3);
 
         new Client(SERVER_IP, SERVER_PORT, frequency, receivedQueue, sendingQueue); // Give the client the Queues to use
-
         //has to be started before transmit thread, so mediumState is not null - has to contain at least MessageType.HELLO
         new receiveThread(receivedQueue).start(); // Start thread to handle received messages!
 
         DiscoveryPacket discoveryPacket = new DiscoveryPacket(this.getIp());                        //creates discovery packet upon initialization
         discoveryPacket.makeSYN();
-
         discoveryMessage = discoveryPacket.convertToMessage();
 
         new transmitThread(sendingQueue).start();
     }
 
-    //------------------------- Start of transmit thread -----------------------//
+    public HashMap<Byte,Byte> getNeighbours() {
+        return neighbours;
+    }
+
+
+    //---------------------------------------------- Start of transmit thread ----------------------------------------------//
     private  class transmitThread extends Thread {
         private BlockingQueue<Message> sendingQueue;
-        private Message message;
 
         public transmitThread(BlockingQueue<Message> sendingQueue){
             super();
@@ -92,8 +87,8 @@ public class Node {
         }
 
         public void run() {
-            //if the last message in the medium state queue is HELLO => we are the first node to join the network?,
-            //then we immediately start sending our discovery message
+
+            //------------------- DISCOVERY SEQUENCE -------------------//
             if (ACKsToSend.isEmpty()) {
                 System.out.println(getIp() + " is sending a SYN");
                 sendDiscoveryMessage();
@@ -106,45 +101,21 @@ public class Node {
                         putMessageInQueue(ACKsToSend.take());
                     }
                     Thread.sleep(1000);         //if medium is busy wait 1 second
+                    //TODO: routing sequence
                 } catch (InterruptedException e) {
                     System.out.println("Failed to send an ACK " + e);
                     break;
                 }
             }
         }
-
-//        private Message consoleInput() {
-//            try {
-//                BufferedReader inp = new BufferedReader(new InputStreamReader(System.in));
-//                String input = "";
-//                while (true) {
-//                    input = inp.readLine(); // read input
-//                    byte[] inputBytes = input.getBytes(); // get bytes from input
-//                    ByteBuffer toSend = ByteBuffer.allocate(inputBytes.length); // make a new byte buffer with the length of the input string
-//                    toSend.put(inputBytes, 0, inputBytes.length); // copy the input string into the byte buffer.
-//                    Message msg;
-//                    if ((input.length()) > 2) {
-//                        msg = new Message(MessageType.DATA, toSend);
-//                    } else {
-//                        msg = new Message(MessageType.DATA_SHORT, toSend);
-//                    }
-//                    return msg;
-//                }
-//            } catch (IOException e) {
-//                System.err.println("Failed to get input from the console. " + e);
-//            }
-//            //DANGER!!!//TODO fix this shit
-//            return null;
-//        }
     }
-    //------------------------- End of transmit thread -----------------------//
+    //---------------------------------------------- End of transmit thread ----------------------------------------------//
 
 
-    //------------------------- Start of receive thread -----------------------//
+    //---------------------------------------------- Start of receive thread ----------------------------------------------//
     private class receiveThread extends Thread {
         private BlockingQueue<Message> receivedQueue;
         private BlockingQueue<Message> pendingACKs;
-//        private BlockingQueue<Message> lastReceivedMediumState;
 
         public receiveThread(BlockingQueue<Message> receivedQueue){
             super();
@@ -152,7 +123,6 @@ public class Node {
             receivedDataQueue = new LinkedBlockingQueue<>();
             receivedShortDataQueue = new LinkedBlockingQueue<>();
             pendingACKs = ACKsToSend;
-//            lastReceivedMediumState = mediumState;
         }
 
         public void printByteBuffer(ByteBuffer bytes, int bytesLength){
@@ -163,7 +133,6 @@ public class Node {
             System.out.println();
         }
 
-        //print received messages
         public void run() {
             while (true) {
                 try {
@@ -175,27 +144,25 @@ public class Node {
                             mediumIsFree = true;
                         }
                         case DATA_SHORT -> {
-                            //while (neighbours.size < 4)? - when do we know to stop receiving discovery messages
                             System.out.print("DATA_SHORT: ");
-                            printByteBuffer(m.getData(), m.getData().capacity()); //Just print the data
+                            printByteBuffer(m.getData(), m.getData().capacity());
                             receivedShortDataQueue.put(m);
 
-                            if (m.getData().get(1) == 64) {         //only if is message is SYN, send a response
+                            //------------------- RECEIVING A SYN -------------------//
+                            if (m.getData().get(1) == 64) {                                 //only if is message is SYN, send a response
 
-//                                sendingQueue.put(m.respondToSYN((byte) getIp()));   //send a response
+                                ACKsToSend.put(m.respondToDiscoverySYN((byte) getIp()));             //send a response through sending thread
 
-                                ACKsToSend.put(m.respondToSYN((byte) getIp()));     //send a response through sending thread
-
-                                neighbours.add(m.getData().get(0));                 //add source IP to neighbours list
-
+                                neighbours.put(m.getData().get(0),(byte)0);                 //add source IP to the routing map, both NODE and NEXT HOP
 
                                 System.out.print("ACK from " + getIp() + ":");
                                 printByteBuffer(m.getData(), 2);
                                 System.out.println("Pending ACKS size " + pendingACKs.size());
                                 System.out.println("ACKs to send: " + ACKsToSend.size());
 
-                            } else if ((m.getData().get(1)) >> 6 == 0) {   //if message is ACK, just add to neighbour's list
-                                neighbours.add(m.getData().get(1));        //add the second byte to neighbour's list
+                                //------------------- RECEIVING AN ACKNOWLEDGEMENT -------------------//
+                            } else if ((m.getData().get(1)) >> 6 == 0) {                    //if message is ACK, just add to neighbour's map
+                                neighbours.put(m.getData().get(1),m.getData().get(1));      //add the direct neighbours IP as both: NODE and NEXT HOP
                             }
                         }
                         case FREE -> {
@@ -208,7 +175,7 @@ public class Node {
                         }
                         case DATA -> {
                             System.out.print("DATA: ");
-                            printByteBuffer(m.getData(), m.getData().capacity()); //Just print the data
+                            printByteBuffer(m.getData(), m.getData().capacity());
                             receivedDataQueue.put(m);
                         }
                         case SENDING -> System.out.println("SENDING");
@@ -224,7 +191,7 @@ public class Node {
             }
         }
     }
-    //------------------------- End of receive thread -----------------------//
+    //---------------------------------------------- End of receive thread ----------------------------------------------//
 
     public int getIp() {
         return ip;

@@ -30,10 +30,14 @@ public class Message {
      * @return the ACK message in response to discovery SYN message
      */
     //@requires this.getData().capacity() == 2;
-    public Message respondToSYN(byte receiverIP) {
+    public Message respondToDiscoverySYN(byte receiverIP) {
         ByteBuffer buffer = this.getData();
         buffer.put(1, (byte) ((buffer.get(1) + receiverIP) - 64));//add the IP and remove SYN flag
         return new Message(MessageType.DATA_SHORT, buffer);
     }
+
+//    public Message respondToRoutingSYN(){
+//        return
+//    }
 
 }
