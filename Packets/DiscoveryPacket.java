@@ -71,12 +71,6 @@ public class DiscoveryPacket implements Packet {
         return buffer.get(1) < 64;
     }
 
-
-    /**
-     * Retrieves the list of all the nodes who responded to the initial discovery message
-     * @return the list of direct neighbours
-     */
-
     /**
      * Encapsulates the discovery packet in a Message Type
      * @return the discovery packet in a form of a MessageType.DATA_SHORT
