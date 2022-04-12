@@ -16,7 +16,6 @@ public class DiscoveryPacket implements Packet {
 
     private int sourceIp;
     private ByteBuffer buffer;
-//    private ArrayList<Byte> neighbours;
 
     /*
                  Source           Flag(SYN/ACK)   Receiver puts their IP here
@@ -29,7 +28,6 @@ public class DiscoveryPacket implements Packet {
         super();
         this.sourceIp = sourceIP;
         buffer = ByteBuffer.allocate(2);
-//        neighbours = new ArrayList<>(3);
     }
 
     /**
@@ -51,7 +49,6 @@ public class DiscoveryPacket implements Packet {
     //@requires ip != 0;
     public void respond(int ip) {
         buffer.put(1, (byte) ((buffer.get(1) + ip) - 64));//add the IP and remove SYN flag
-//        neighbours.add((byte)ip);
     }
 
     /**
@@ -79,34 +76,13 @@ public class DiscoveryPacket implements Packet {
      * Retrieves the list of all the nodes who responded to the initial discovery message
      * @return the list of direct neighbours
      */
-//    public ArrayList<Byte> getNeighbours() {
-//        return neighbours;
-//    }
 
     /**
      * Encapsulates the discovery packet in a Message Type
      * @return the discovery packet in a form of a MessageType.DATA_SHORT
      */
     public Message convertToMessage() {
-//        return new Message(MessageType.DATA_SHORT,buffer);
         return new Message(MessageType.DATA_SHORT,buffer);
     }
-
 }
-
-//    public static void main(String[] args) {
-//        DiscoveryPacket packet = new DiscoveryPacket(63);
-//        packet.makeSYN();
-//        ByteBuffer resultBuffer = packet.getByteBuffer();
-//        System.out.println("SYN packet from 63:");
-//        for (int i = 0; i < resultBuffer.capacity(); i++) {
-//            System.out.println(String.format("%8s",Integer.toBinaryString(resultBuffer.get(i))).replace(' ', '0'));
-//        }
-//        packet.respond(55);
-//        System.out.println("ACK packet from 55:");
-//        ByteBuffer responseBuffer = packet.getByteBuffer();
-//        for (int i = 0; i < responseBuffer.capacity(); i++) {
-//            System.out.println(String.format("%8s",Integer.toBinaryString(responseBuffer.get(i))).replace(' ', '0'));
-//        }
-//    }
 
