@@ -1,5 +1,6 @@
 package client;
 
+
 import java.nio.ByteBuffer;
 
 public class Message {
@@ -22,4 +23,5 @@ public class Message {
     public ByteBuffer getData(){
         return data;
     }
+
 }
