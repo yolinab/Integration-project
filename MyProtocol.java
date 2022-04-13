@@ -5,6 +5,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.concurrent.BlockingQueue;
 
 /**
@@ -26,6 +27,16 @@ public class MyProtocol{
 
         Node node =  new Node();
         System.out.println(node.getIp());
+
+        //printing initial routing table
+//        Thread.sleep(10000);
+//        HashMap<Byte,Byte> neig = node.getNeighbours();
+//        for (Byte key:neig.keySet()) {
+//            System.out.println("Key:");
+//            System.out.println(key);
+//            System.out.println("Value:");
+//            System.out.println(neig.get(key));
+//        }
 
     }
 
