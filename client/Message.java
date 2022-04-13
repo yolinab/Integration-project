@@ -26,14 +26,23 @@ public class Message {
 
     /**
      * Removes the SYN flag from a discovery message and places the IP in the second byte
+     *
      * @param receiverIP the IP of the responder
      * @return the ACK message in response to discovery SYN message
      */
-    //@requires this.getData().capacity() == 2;
+    //@requires data.capacity() == 2;
     public Message respondToDiscoverySYN(byte receiverIP) {
         ByteBuffer buffer = this.getData();
         buffer.put(1, (byte) ((buffer.get(1) + receiverIP) - 64));//add the IP and remove SYN flag
         return new Message(MessageType.DATA_SHORT, buffer);
+    }
+
+    /**
+     *
+     */
+    //@requires data.capacity() == 5;
+    public void readReceivedRoutingTable() {
+
     }
 
 //    public Message respondToRoutingSYN(){

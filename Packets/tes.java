@@ -13,12 +13,9 @@ public class tes {
         neighbours.put((byte)2,(byte)2);
         neighbours.put((byte)3,(byte)3);
 
-        LinkStatePacket packet = new LinkStatePacket(63);       // 00111111
-        packet.makeSYN(neighbours);
-
+        LinkStatePacket packet = new LinkStatePacket(63, neighbours);       // 00111111
 
         ByteBuffer buffer = packet.getByteBuffer();
-
 
         System.out.println("Bytes:");
         for (int i = 0; i<buffer.capacity(); i++) {
