@@ -11,8 +11,6 @@ import java.util.ArrayList;
  *
  * Message type: DATA_SHORT
  */
-
-//TODO: protocol handling packet loss
 public class DiscoveryPacket implements Packet {
 
     private final int sourceIp;
@@ -27,7 +25,6 @@ public class DiscoveryPacket implements Packet {
      * Makes an initial SYN packet containing the IP of the creator,
      * a set SYN flag and an empty placeholder for the receivers IP.
      */
-    //@requires sourceIp != 0;
     //@ensures buffer.capacity() == 2 && buffer.get(1) == 64;
     public DiscoveryPacket(int sourceIP) {
         super();

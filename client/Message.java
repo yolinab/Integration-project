@@ -25,7 +25,7 @@ public class Message {
     }
 
     /**
-     * Removes the SYN flag from a discovery message and places the IP in the second byte
+     * Removes the SYN flag from a discovery message and places the IP in the second byte.
      *
      * @param receiverIP the IP of the responder
      * @return the ACK message in response to discovery SYN message

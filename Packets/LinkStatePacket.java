@@ -27,7 +27,7 @@ public class LinkStatePacket implements Packet{
      */
     /**
      * Makes an initial SYN packet containing the IP of the creator,
-     * a set SYN flag(4 bits), number of neighbors(4 bits) and 3 bytes for the list of neighbours .
+     * a set SYN flag(4 bits), number of neighbors(4 bits) and 3 bytes for the list of neighbours.
      */
     //@requires directNeighbours != null && directNeighbours.size() > 0;
     public LinkStatePacket(int sourceIp, HashMap<Byte,Byte> directNeighbours) {
@@ -62,22 +62,4 @@ public class LinkStatePacket implements Packet{
         return new Message(MessageType.DATA,buffer);
     }
 
-//    For debugging
-//    public static void main(String[] args) {
-//
-//        //--------
-//        HashMap<Byte,Byte> neighbours = new HashMap<>();
-//        neighbours.put((byte)1,(byte)1);                                //00000001
-//        neighbours.put((byte)2,(byte)2);                                //00000010
-//        neighbours.put((byte)3,(byte)3);                                //00000011
-//
-//        LinkStatePacket packet = new LinkStatePacket(63, neighbours);       //00111111
-//
-//        ByteBuffer bytes = packet.getByteBuffer();
-//
-//        System.out.println("Bytes:");
-//        for (int i = 0; i<bytes.capacity(); i++) {
-//            System.out.println(String.format("%8s", Integer.toBinaryString(bytes.get(i))).replace(' ', '0'));
-//        }
-//    }
 }
