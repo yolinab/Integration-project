@@ -33,7 +33,9 @@ public class Message {
     //@requires data.capacity() == 2;
     public Message respondToDiscoverySYN(byte receiverIP) {
         ByteBuffer buffer = this.getData();
-        buffer.put(1, (byte) ((buffer.get(1) + receiverIP) - 64));//add the IP and remove SYN flag
+//        buffer.put(1, (byte) ((buffer.get(1) + receiverIP) - 64));//add the IP and remove SYN flag
+        buffer.put(0, receiverIP);//add the IP and remove SYN flag
+        buffer.put(1,(byte)0);
         return new Message(MessageType.DATA_SHORT, buffer);
     }
 
