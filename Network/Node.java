@@ -100,13 +100,18 @@ public class Node {
             sendPONGs.start();
             while (true) {
                 try {
-                    Thread.sleep(1000);
+                    if (neighbours.size() == 3) {
+
+                        //TODO: it never enters this block - either something with the hashmap or concurrency
+                        for (Byte dest: neighbours.keySet()) {
+                            System.out.print("Destination:");
+                            System.out.println(dest);
+                            System.out.println("Next hop:");
+                            System.out.println(neighbours.get(dest));
+                        }
+                    }
+                    Thread.sleep(10000);
                     //TODO: routing sequence
-//                    //If we have received SYNs, send ACKs
-//                    if (mediumIsFree && PONGsToSend.size() > 0) {
-//                        System.out.println(getIp() + " is sending a PONG.");
-//                        putMessageInSendingQueue(PONGsToSend.take());
-//                    }
                 } catch (InterruptedException e) {
                     System.out.println("Failed to send data. " + e);
                     break;
@@ -196,8 +201,6 @@ public class Node {
                     MessageType type = m.getType();
                     switch (type) {
                         case DATA_SHORT -> {
-//                            System.out.print("DATA_SHORT: ");
-//                            printByteBuffer(m.getData(), m.getData().capacity());
                             System.out.println();
                             receivedShortDataQueue.put(m);
 
@@ -205,9 +208,7 @@ public class Node {
                             if (m.getData().get(1) == 64) {                                  //only if is message is SYN, send a response
                                 System.out.println(getIp() + " received a PING.");
                                 printByteBuffer(m.getData(), m.getData().capacity());
-
                                 PONGsToSend.put(m.respondToDiscoverySYN((byte) getIp()));     //send a response through sending thread
-                                neighbours.put(m.getData().get(0),m.getData().get(0));
 
                                 //------------------- RECEIVING A PONG -------------------//
                             } else if ((m.getData().get(1))  == 0) {                    //if message is ACK, just add to neighbour's map
