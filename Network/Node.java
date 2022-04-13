@@ -79,13 +79,11 @@ public class Node {
     private  class transmitThread extends Thread {
         private BlockingQueue<Message> sendingQueue;
         private Thread sendPINGs;
-//        Runnable sendPINGs;
 
         public transmitThread(BlockingQueue<Message> sendingQueue){
             super();
             this.sendingQueue = sendingQueue;
             sendPINGs = new sendPINGsThread();
-//            this.sendPINGs = sendPINGs;
         }
 
         public void run() {
@@ -123,6 +121,7 @@ public class Node {
     private class receiveThread extends Thread {
         private BlockingQueue<Message> receivedQueue;
         private BlockingQueue<Message> pendingACKs;
+        private Thread sendPONGs;
 
         public receiveThread(BlockingQueue<Message> receivedQueue){
             super();
@@ -201,13 +200,13 @@ public class Node {
     //---------------------------------------------- End of receive thread ----------------------------------------------//
 
     /**
-     * A runnable object to send discovery messages at an interval of 10 seconds
-     * Discovery / PING
+     * A separate thread for sending PINGs
+     * PING
      *
      */
     public class sendPINGsThread extends Thread {
 
-        private final long timeInterval = 15000;        //execute every 10 seconds
+        private final long timeInterval = 15000;        //execute every 15 seconds
 
         @Override
         public void run() {
