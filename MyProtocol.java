@@ -30,7 +30,7 @@ public class MyProtocol{
 
         Node node =  new Node(SERVER_IP,SERVER_PORT,frequency);
         System.out.println(node.getIp());
-
+        node.initialize();
 
 
 

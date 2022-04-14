@@ -32,22 +32,23 @@ public class Node {
         sendingQueue = new LinkedBlockingQueue<>();
         new Client(serverIP, serverPort, frequency, receivedQueue, sendingQueue);
         ip = (new Random().nextInt((int) System.currentTimeMillis())) % 64;
+    }
 
+    /**
+     * Starts the discovery and routing sequences of a node.
+     */
+    public void initialize() {
         mediumIsFree = false;
         PONGsToSend = new LinkedBlockingQueue<>();
         recentlyReceivedPONGs = new LinkedBlockingQueue<>();
         neighbours = new HashMap<>(3);
 
-        new receiveThread(receivedQueue).start(); ///has to be started before transmit thread, so mediumState is set accurately
+        new receiveThread(receivedQueue).start();
 
         DiscoveryPacket discoveryPacket = new DiscoveryPacket(ip);
         discoveryMessage = discoveryPacket.convertToMessage();
 
         new transmitThread(sendingQueue).start();
-    }
-
-    public void start() {
-
     }
 
     /**
@@ -73,7 +74,7 @@ public class Node {
 
     //---------------------------------------------- Start of sending threads ----------------------------------------------//
     /**
-     * Currently the sending thread is used only for starting the PING and PONG sending threads
+     * Thread for putting messages in
      */
     private  class transmitThread extends Thread {
         private BlockingQueue<Message> sendingQueue;
@@ -134,25 +135,28 @@ public class Node {
         @Override
         public void run() {
             while (true) {
-                send = new Random().nextInt(5) == 0; //how to make it different for every time it has to send, because now it's unfair
 
-                if (mediumIsFree && PONGsToSend.isEmpty() && counter < 5) {     //we are still in discovery phase
-                    System.out.println(getIp() + " is sending a PING.");
-                    sendPING();
-                    counter++;
-                }
+                send = new Random().nextInt(5) == 0;
+
                 while (send) {
-                    if (mediumIsFree && PONGsToSend.isEmpty() && send) {            //we decrease the rate at which we are sending
+                    if (mediumIsFree && PONGsToSend.isEmpty() && counter < 5) {//we are still in discovery phase
                         System.out.println(getIp() + " is sending a PING.");
                         sendPING();
                         counter++;
                     }
-                }
-                try {
-                    Thread.sleep(timeInterval);
-                } catch (InterruptedException e) {
-                    System.err.println("Failed to send PING " + e);
-                    break;
+                    if (mediumIsFree && PONGsToSend.isEmpty()) {            //we decrease the rate at which we are sending
+                        System.out.println(getIp() + " is sending a PING.");
+                        sendPING();
+                        counter++;
+                    }
+
+                    send = new Random().nextInt(5) == 0;
+                    try {
+                        Thread.sleep(timeInterval);
+                    } catch (InterruptedException e) {
+                        System.err.println("Failed to send PING " + e);
+                        break;
+                    }
                 }
             }
         }
@@ -170,11 +174,11 @@ public class Node {
         public void run() {
             while (true) {
                 try {
-                    //If we have received SYNs, send ACKs
                     if (mediumIsFree && PONGsToSend.size() > 0) {
                         System.out.println(getIp() + " is sending a PONG.");
                         putMessageInSendingQueue(PONGsToSend.take());
                     }
+                    Thread.sleep(300);
                 } catch (InterruptedException e) {
                     System.out.println("Failed to send data. " + e);
                     break;
