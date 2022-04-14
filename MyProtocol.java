@@ -1,9 +1,11 @@
 import Network.Node;
+import Packets.LinkStateRoutingPacket;
 import client.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.BlockingQueue;
@@ -16,27 +18,21 @@ import java.util.concurrent.BlockingQueue;
 
 public class MyProtocol{
 
-    private BlockingQueue<Message> receivedQueue;
-    private BlockingQueue<Message> sendingQueue;
+    private static final String SERVER_IP = "netsys.ewi.utwente.nl";
+    private static final int SERVER_PORT = 8954;
+    private static final int frequency = 5301;
 
-    public MyProtocol(String server_ip, int server_port, int frequency){
+    public MyProtocol(){
 
     }
 
     public static void main(String args[]) throws IOException, InterruptedException {
 
-        Node node =  new Node();
+        Node node =  new Node(SERVER_IP,SERVER_PORT,frequency);
         System.out.println(node.getIp());
 
-        //printing initial routing table
-//        Thread.sleep(10000);
-//        HashMap<Byte,Byte> neig = node.getNeighbours();
-//        for (Byte key:neig.keySet()) {
-//            System.out.println("Key:");
-//            System.out.println(key);
-//            System.out.println("Value:");
-//            System.out.println(neig.get(key));
-//        }
+
+
 
     }
 
