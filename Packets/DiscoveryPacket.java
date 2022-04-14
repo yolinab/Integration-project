@@ -11,23 +11,20 @@ import java.util.ArrayList;
  *
  * Message type: DATA_SHORT
  */
-
-//TODO: protocol handling packet loss
 public class DiscoveryPacket implements Packet {
 
     private final int sourceIp;
     private ByteBuffer buffer;
 
     /*
-                 Source           Flag(SYN/ACK)   Receiver puts their IP here
-            |_|_||_|_||_|_||_|_|      |_|_|          |_|_||_|_||_|_|
+                   Source                Flag(SYN/ACK)
+            |_|_||_|_||_|_||_|_|      |_|_||_|_||_|_||_|_|
      */
 
     /**
-     * Makes an initial SYN packet containing the IP of the creator,
-     * a set SYN flag and an empty placeholder for the receivers IP.
+     * Makes an initial SYN packet containing the IP of the creator
+     * and a set SYN flag.
      */
-    //@requires sourceIp != 0;
     //@ensures buffer.capacity() == 2 && buffer.get(1) == 64;
     public DiscoveryPacket(int sourceIP) {
         super();

@@ -86,4 +86,23 @@ public class tes {
 //            //DANGER!!!//TODO fix this shit
 //            return null;
 //        }
+
+    //    For debugging
+//    public static void main(String[] args) {
+//
+//        //--------
+//        HashMap<Byte,Byte> neighbours = new HashMap<>();
+//        neighbours.put((byte)1,(byte)1);                                //00000001
+//        neighbours.put((byte)2,(byte)2);                                //00000010
+//        neighbours.put((byte)3,(byte)3);                                //00000011
+//
+//        LinkStatePacket packet = new LinkStatePacket(63, neighbours);       //00111111
+//
+//        ByteBuffer bytes = packet.getByteBuffer();
+//
+//        System.out.println("Bytes:");
+//        for (int i = 0; i<bytes.capacity(); i++) {
+//            System.out.println(String.format("%8s", Integer.toBinaryString(bytes.get(i))).replace(' ', '0'));
+//        }
+//    }
 }
