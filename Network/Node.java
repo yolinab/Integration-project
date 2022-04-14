@@ -74,7 +74,7 @@ public class Node {
 
     //---------------------------------------------- Start of sending threads ----------------------------------------------//
     /**
-     * Thread for putting messages in
+     * Thread for transmitting messages.
      */
     private  class transmitThread extends Thread {
         private BlockingQueue<Message> sendingQueue;
@@ -93,8 +93,8 @@ public class Node {
         @Override
         public void run() {
             sendPINGs.start();
-            sendPONGs.start();
-            sendRoutingInfo.start();
+//            sendPONGs.start();
+//            sendRoutingInfo.start();
             while (true) {
                 try {
                     if (neighbours.size() == 3) {
@@ -125,9 +125,8 @@ public class Node {
      */
     public class sendPINGsThread extends Thread {
 
-        //time interval at which to try to send a PING
-        private final long timeInterval = 10000;
-        // ≈ 33% probability to send
+        private final long timeInterval = 3000;
+        // ≈ 10% probability to send
         boolean send;
         //counts how many PINGs a node has sent, so overtime it can decrease the rate it's sending them at
         int counter;
@@ -135,28 +134,26 @@ public class Node {
         @Override
         public void run() {
             while (true) {
-
-                send = new Random().nextInt(5) == 0;
+                send = new Random().nextInt(9) == 0;
 
                 while (send) {
-                    if (mediumIsFree && PONGsToSend.isEmpty() && counter < 5) {//we are still in discovery phase
+                    if (mediumIsFree && PONGsToSend.isEmpty()) {//we are still in discovery phase
                         System.out.println(getIp() + " is sending a PING.");
                         sendPING();
                         counter++;
                     }
-                    if (mediumIsFree && PONGsToSend.isEmpty()) {            //we decrease the rate at which we are sending
-                        System.out.println(getIp() + " is sending a PING.");
-                        sendPING();
-                        counter++;
-                    }
-
+//                    if (mediumIsFree && PONGsToSend.isEmpty() && counter > 5) {            //we decrease the rate at which we are sending
+//                        System.out.println(getIp() + " is sending a PING.");
+//                        sendPING();
+//                        counter++;
+//                    }
                     send = new Random().nextInt(5) == 0;
-                    try {
-                        Thread.sleep(timeInterval);
-                    } catch (InterruptedException e) {
-                        System.err.println("Failed to send PING " + e);
-                        break;
-                    }
+                }
+                try {
+                    Thread.sleep(timeInterval);
+                } catch (InterruptedException e) {
+                    System.err.println("Failed to send PING " + e);
+                    break;
                 }
             }
         }
