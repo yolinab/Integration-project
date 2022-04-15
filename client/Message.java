@@ -38,7 +38,7 @@ public class Message {
         byte srcIP = buffer.get(0);
         buffer.clear();
         buffer.put(0, (byte) receiverIP);
-        buffer.put(1,(byte)(srcIP + 128));
+        buffer.put(1,(byte)(srcIP + 128));                  //10000000 - ACK
         return new Message(MessageType.DATA_SHORT, buffer);
     }
 

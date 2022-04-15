@@ -12,9 +12,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class Node {
-    private final int ip;
+    private int ip;
     private boolean mediumIsFree;
-    private Message discoveryMessage;
     private BlockingQueue<Message> PONGsToSend;
     private BlockingQueue<Byte> recentlyReceivedPONGs;
 
@@ -22,8 +21,6 @@ public class Node {
     private HashMap<Byte,Byte> neighbours;
     private Message routingMessage;
 
-    public BlockingQueue<Message> receivedDataQueue;
-    public BlockingQueue<Message> receivedShortDataQueue;
     private BlockingQueue<Message> receivedQueue;
     private BlockingQueue<Message> sendingQueue;
 
@@ -35,7 +32,7 @@ public class Node {
     }
 
     /**
-     * Starts the discovery and routing sequences of a node.
+     * Starts the discovery and routing sequences of a Node.
      */
     public void initialize() {
         mediumIsFree = false;
@@ -45,9 +42,6 @@ public class Node {
 
         new receiveThread(receivedQueue).start();
 
-        DiscoveryPacket discoveryPacket = new DiscoveryPacket(ip);
-        discoveryMessage = discoveryPacket.convertToMessage();
-
         new transmitThread(sendingQueue).start();
     }
 
@@ -55,26 +49,26 @@ public class Node {
      * Placing messages in the sending queue is done ONLY by using this method.
      * By avoiding race conditions, we ensure fair queueing.
      *
-     * @param msgToPutInSendingQueue message to be sent
+     * @param message Message to be sent
      */
-    private synchronized void putMessageInSendingQueue(Message msgToPutInSendingQueue) {
+    private synchronized void putMessageInSendingQueue(Message message) {
         try {
-            sendingQueue.put(msgToPutInSendingQueue);
+            sendingQueue.put(message);
         } catch (InterruptedException e) {
             System.err.println("Failed to put message in sending queue." + e);
         }
     }
 
     /**
-     * Puts a PING message in the sending queue.
+     * Puts a PING Message in the sending queue.
      */
     private synchronized void sendPING() {
-        putMessageInSendingQueue(discoveryMessage);
+        putMessageInSendingQueue(new DiscoveryPacket(ip).convertToMessage());
     }
 
     //---------------------------------------------- Start of sending threads ----------------------------------------------//
     /**
-     * Thread for transmitting messages.
+     * Thread for transmitting Messages.
      */
     private  class transmitThread extends Thread {
         private BlockingQueue<Message> sendingQueue;
@@ -106,7 +100,7 @@ public class Node {
                             System.out.println(neighbours.get(dest));
                         }
                     }
-                    Thread.sleep(10000);
+                    Thread.sleep(1000);
                     //TODO: routing sequence
                 } catch (InterruptedException e) {
                     System.out.println("Failed to send data. " + e);
@@ -126,7 +120,7 @@ public class Node {
     public class sendPINGsThread extends Thread {
 
         private final long timeInterval = 3000;
-        // ≈ 20% probability to send
+        // ≈ ??% probability to send
         boolean send;
         //counts how many PINGs a node has sent, so overtime it can decrease the rate it's sending them at
         int counter;
@@ -192,7 +186,7 @@ public class Node {
     }
 
     /**
-     * A separate thread for sending a nodes routing information at a specified time interval.
+     * A separate thread for sending a Nodes routing information at a specified time interval.
      *
      * Before it starts it waits 10 seconds so the nodes can first discover their neighbours.
      */
@@ -229,14 +223,11 @@ public class Node {
         public receiveThread(BlockingQueue<Message> receivedQueue){
             super();
             this.receivedQueue = receivedQueue;
-            receivedDataQueue = new LinkedBlockingQueue<>();
-            receivedShortDataQueue = new LinkedBlockingQueue<>();
         }
 
         public void printByteBuffer(ByteBuffer bytes, int bytesLength){
             for(int i=0; i<bytesLength; i++){
                 System.out.print(  ( bytes.get(i) ) );
-//                System.out.println(String.format("%8s",Integer.toBinaryString(bytes.get(i))).replace(' ','0'));
             }
         }
 
@@ -247,16 +238,21 @@ public class Node {
                     MessageType type = m.getType();
                     switch (type) {
                         case DATA_SHORT -> {
-                            receivedShortDataQueue.put(m);
                             //------------------- RECEIVING A PING -------------------//    //[sender of PING] + [01000000]
                             if (m.getData().get(1) == 64) {                                 //only if is message is SYN, send a response
                                 System.out.println(getIp() + " received a PING. ");
                                 printByteBuffer(m.getData(), m.getData().capacity());
                                 System.out.println();
-                                PONGsToSend.put(m.respondToDiscoverySYN((byte) getIp()));   //send a response through sending thread
+                                if (m.getData().get(0) == getIp()) {                        //if the sender has the same ip as us, we change ours
+                                    ip =(new Random().nextInt((int) System.currentTimeMillis())) % 64;
+                                    System.out.println("Someone has the same IP as us, so we changed ours to: " + ip);
+                                    sendPING();
+                                } else if(m.getData().get(0) != getIp()) {
+                                    PONGsToSend.put(m.respondToDiscoverySYN((byte) getIp()));
+                                }
                             }
-                            //------------------- RECEIVING A PONG -------------------//    //[the node that ACKed our SYN] + [00000000]
-                            else if ((m.getData().get(1))  == (byte) (getIp() + 128)) {                          //if message is ACK, just add to neighbour's map
+                            //------------------- RECEIVING A PONG -------------------//
+                            else if ((m.getData().get(1))  == (byte) (getIp() + 128)) { //if message is ACK, just add to neighbour's map
                                 System.out.println(getIp() + " received a PONG from " + m.getData().get(0) + " .");
                                 neighbours.put(m.getData().get(0),m.getData().get(0));
                                 recentlyReceivedPONGs.put(m.getData().get(0));
@@ -265,10 +261,6 @@ public class Node {
                         case DATA -> {
                             System.out.print("DATA: ");
                             printByteBuffer(m.getData(), m.getData().capacity());
-//                            for (Byte dest: neighbours.keySet()) {
-//                                System.out.println(dest);
-//                            }
-                            receivedDataQueue.put(m);
                             //------------------- RECEIVING SYN ROUTING TABLE -------------------//
 
                             if (m.getData().get(1) >> (byte) 4 == 4) {           //if we receive a SYN routing table we first read the routing table
@@ -318,6 +310,17 @@ public class Node {
                 }
             }
         }
+    }
+
+    private class receiveDataShortThread extends Thread {
+
+         @Override
+        public void run() {
+
+             while (true) {
+
+             }
+         }
     }
     //---------------------------------------------- End of receive thread ----------------------------------------------//
 
