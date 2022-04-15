@@ -1,6 +1,8 @@
 package Packets;
 
 import Network.Node;
+import client.Message;
+import client.MessageType;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -8,24 +10,32 @@ import java.util.HashMap;
 
 public class tes {
 
-    HashMap<Byte,Byte> neighbours;
-
-    public tes() {
-        neighbours = new HashMap<>();
-        neighbours.put((byte) 1, (byte) 1);
-        neighbours.put((byte) 2, (byte) 2);
-        neighbours.put((byte) 4, (byte) 3);
-
-    }
 
     public static void main(String[] args) {
 
-        tes test = new tes();
 
-        ArrayList<Byte> inRNG = test.getNodesInRange();
-        for (int i = 0; i < inRNG.size(); i++) {
-            System.out.println(inRNG.get(i));
+        DiscoveryPacket packet = new DiscoveryPacket(63);
+        System.out.println("Intial packet:");
+        for (int i = 0; i < packet.getByteBuffer().capacity(); i++) {
+            System.out.println(String.format("%8s",Integer.toBinaryString(packet.getByteBuffer().get(i))).replace(' ', '0'));
         }
+
+        Message message = new Message(MessageType.DATA,packet.getByteBuffer());
+        message.respondToDiscoverySYN((byte)5);
+        ByteBuffer buffer = message.getData();
+        System.out.println("After response:");
+        for (int i = 0; i < buffer.capacity(); i++) {
+            System.out.println(String.format("%8s",Integer.toBinaryString(buffer.get(i) & 0xFF)).replace(' ', '0'));
+        }
+
+//        byte b1 = (byte) 255;
+
+//        tes test = new tes();
+//
+//        ArrayList<Byte> inRNG = test.getNodesInRange();
+//        for (int i = 0; i < inRNG.size(); i++) {
+//            System.out.println(inRNG.get(i));
+//        }
 
 //        LinkStateRoutingPacket packet = new LinkStateRoutingPacket(63, neighbours);       // 00111111
 //
@@ -39,16 +49,16 @@ public class tes {
 //    }
     }
 
-    public ArrayList<Byte> getNodesInRange() {
-        ArrayList<Byte> directNeighbours = new ArrayList<>();
-        for (Byte destination: neighbours.keySet()) {
-
-            if ((byte)destination == neighbours.get(destination)) {
-                directNeighbours.add(destination);
-            }
-        }
-        return directNeighbours;
-    }
+//    public ArrayList<Byte> getNodesInRange() {
+//        ArrayList<Byte> directNeighbours = new ArrayList<>();
+//        for (Byte destination: neighbours.keySet()) {
+//
+//            if ((byte)destination == neighbours.get(destination)) {
+//                directNeighbours.add(destination);
+//            }
+//        }
+//        return directNeighbours;
+//    }
 }
 //        ByteBuffer buffer = ByteBuffer.allocate(2);
 //

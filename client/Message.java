@@ -26,16 +26,19 @@ public class Message {
     }
 
     /**
-     * Places the IP of the receiver in the first byte, and an ACK flag in the second
+     * Places the IP of the receiver in the first byte, and the IP of the initial sender
+     * in the second byte with an ACK flag.
      *
      * @param receiverIP the IP of the responder
      * @return the ACK message in response to discovery SYN message
      */
     //@requires data.capacity() == 2;
-    public Message respondToDiscoverySYN(byte receiverIP) {
+    public Message respondToDiscoverySYN(int receiverIP) {
         ByteBuffer buffer = this.getData();
-        buffer.put(0, receiverIP);
-        buffer.put(1,(byte)0);
+        byte srcIP = buffer.get(0);
+        buffer.clear();
+        buffer.put(0, (byte) receiverIP);
+        buffer.put(1,(byte)(srcIP + 128));
         return new Message(MessageType.DATA_SHORT, buffer);
     }
 
@@ -47,9 +50,9 @@ public class Message {
      * @return DIRECT PING Message with a SYN flag
      */
     //@requires data.capacity() == 2;
-    public Message makeDirectedPING(byte sourceIp, byte destIP) {               //first byte is the
+    public Message makeDirectedPING(int sourceIp, int destIP) {               //first byte is the
         ByteBuffer buffer = this.getData();                                     //second byte is the node that being checked
-        buffer.put(0,sourceIp);
+        buffer.put(0,(byte) sourceIp);
         buffer.put(1,(byte)(64 + destIP));
         return new Message(MessageType.DATA_SHORT,buffer);
     }

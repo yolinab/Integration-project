@@ -93,7 +93,7 @@ public class Node {
         @Override
         public void run() {
             sendPINGs.start();
-//            sendPONGs.start();
+            sendPONGs.start();
 //            sendRoutingInfo.start();
             while (true) {
                 try {
@@ -126,7 +126,7 @@ public class Node {
     public class sendPINGsThread extends Thread {
 
         private final long timeInterval = 3000;
-        // ≈ 10% probability to send
+        // ≈ 20% probability to send
         boolean send;
         //counts how many PINGs a node has sent, so overtime it can decrease the rate it's sending them at
         int counter;
@@ -134,7 +134,7 @@ public class Node {
         @Override
         public void run() {
             while (true) {
-                send = new Random().nextInt(9) == 0;
+                send =(new Random().nextInt(8) == 0);
 
                 while (send) {
                     if (mediumIsFree && PONGsToSend.isEmpty()) {//we are still in discovery phase
@@ -142,12 +142,13 @@ public class Node {
                         sendPING();
                         counter++;
                     }
-//                    if (mediumIsFree && PONGsToSend.isEmpty() && counter > 5) {            //we decrease the rate at which we are sending
-//                        System.out.println(getIp() + " is sending a PING.");
-//                        sendPING();
-//                        counter++;
-//                    }
-                    send = new Random().nextInt(5) == 0;
+                    try {
+                        Thread.sleep(timeInterval);
+                    } catch (InterruptedException e) {
+                        System.err.println("Failed to send PING " + e);
+                        break;
+                    }
+                    send = new Random().nextInt(15) == 0;
                 }
                 try {
                     Thread.sleep(timeInterval);
@@ -166,19 +167,25 @@ public class Node {
      * and keeps running to adapt to change in network topology.
      */
     public class sendPONGsThread extends Thread {
-
+        private int timeInterval = 500;
+        private boolean send;
         @Override
         public void run() {
             while (true) {
-                try {
-                    if (mediumIsFree && PONGsToSend.size() > 0) {
-                        System.out.println(getIp() + " is sending a PONG.");
-                        putMessageInSendingQueue(PONGsToSend.take());
+                send =(new Random().nextInt(8) == 0);
+
+                while (send) {
+                    try {
+                        if (mediumIsFree && PONGsToSend.size() > 0) {
+                            System.out.println(getIp() + " is sending a PONG.");
+                            putMessageInSendingQueue(PONGsToSend.take());
+                        }
+                        Thread.sleep(timeInterval);
+                        send =(new Random().nextInt(10) == 0);
+                    } catch (InterruptedException e) {
+                        System.out.println("Failed to send data. " + e);
+                        break;
                     }
-                    Thread.sleep(300);
-                } catch (InterruptedException e) {
-                    System.out.println("Failed to send data. " + e);
-                    break;
                 }
             }
         }
@@ -243,24 +250,17 @@ public class Node {
                             receivedShortDataQueue.put(m);
                             //------------------- RECEIVING A PING -------------------//    //[sender of PING] + [01000000]
                             if (m.getData().get(1) == 64) {                                 //only if is message is SYN, send a response
-                                System.out.print(getIp() + " received a PING. ");
+                                System.out.println(getIp() + " received a PING. ");
                                 printByteBuffer(m.getData(), m.getData().capacity());
+                                System.out.println();
                                 PONGsToSend.put(m.respondToDiscoverySYN((byte) getIp()));   //send a response through sending thread
                             }
                             //------------------- RECEIVING A PONG -------------------//    //[the node that ACKed our SYN] + [00000000]
-                            else if ((m.getData().get(1))  == 0) {                          //if message is ACK, just add to neighbour's map
-                                System.out.print(getIp() + " received a PONG from " + m.getData().get(0) + " .");
+                            else if ((m.getData().get(1))  == (byte) (getIp() + 128)) {                          //if message is ACK, just add to neighbour's map
+                                System.out.println(getIp() + " received a PONG from " + m.getData().get(0) + " .");
                                 neighbours.put(m.getData().get(0),m.getData().get(0));
                                 recentlyReceivedPONGs.put(m.getData().get(0));
                             }
-                            //------------------- RECEIVING A DIRECTED PING -------------------//
-
-                            else if ((m.getData().get(1) - 64) == getIp()) {                                                 //if the second byte is out IP, we are being checked
-                                System.out.println(m.getData().get(0) + " wants to check if we are still in range.");
-                                PONGsToSend.put(m.respondToDirectedPING());
-                            }
-                            //------------------- RECEIVING A DIRECTED PONG -------------------//
-                            //Do nothing
                         }
                         case DATA -> {
                             System.out.print("DATA: ");
