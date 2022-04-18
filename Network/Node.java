@@ -12,15 +12,19 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class Node {
-    private int ip;
+    private final int ip;
     private boolean mediumIsFree;
+    private Message discoveryMessage;
     private BlockingQueue<Message> PONGsToSend;
-    private BlockingQueue<Byte> recentlyReceivedPONGs;
+    private ArrayList<Byte> recentlyReceived;
+    private BlockingQueue<Message> routingMessagesToSend;
 
     //ROUTING TABLE -> key - destination | value - next hop
-    private HashMap<Byte,Byte> neighbours;
+    private HashMap<Byte,Byte> routingTable;
     private Message routingMessage;
 
+    public BlockingQueue<Message> receivedDataQueue;
+    public BlockingQueue<Message> receivedShortDataQueue;
     private BlockingQueue<Message> receivedQueue;
     private BlockingQueue<Message> sendingQueue;
 
@@ -32,15 +36,18 @@ public class Node {
     }
 
     /**
-     * Starts the discovery and routing sequences of a Node.
+     * Starts the discovery and routing sequences of a node.
      */
     public void initialize() {
         mediumIsFree = false;
         PONGsToSend = new LinkedBlockingQueue<>();
-        recentlyReceivedPONGs = new LinkedBlockingQueue<>();
-        neighbours = new HashMap<>(3);
-
+        recentlyReceived = new ArrayList<>();
+        routingTable = new HashMap<>(3);
+        routingMessagesToSend = new LinkedBlockingQueue<>();
         new receiveThread(receivedQueue).start();
+
+        DiscoveryPacket discoveryPacket = new DiscoveryPacket(ip);
+        discoveryMessage = discoveryPacket.convertToMessage();
 
         new transmitThread(sendingQueue).start();
     }
@@ -49,26 +56,26 @@ public class Node {
      * Placing messages in the sending queue is done ONLY by using this method.
      * By avoiding race conditions, we ensure fair queueing.
      *
-     * @param message Message to be sent
+     * @param msgToPutInSendingQueue message to be sent
      */
-    private synchronized void putMessageInSendingQueue(Message message) {
+    private synchronized void putMessageInSendingQueue(Message msgToPutInSendingQueue) {
         try {
-            sendingQueue.put(message);
+            sendingQueue.put(msgToPutInSendingQueue);
         } catch (InterruptedException e) {
             System.err.println("Failed to put message in sending queue." + e);
         }
     }
 
     /**
-     * Puts a PING Message in the sending queue.
+     * Puts a PING message in the sending queue.
      */
     private synchronized void sendPING() {
-        putMessageInSendingQueue(new DiscoveryPacket(ip).convertToMessage());
+        putMessageInSendingQueue(discoveryMessage);
     }
 
     //---------------------------------------------- Start of sending threads ----------------------------------------------//
     /**
-     * Thread for transmitting Messages.
+     * Thread for transmitting messages.
      */
     private  class transmitThread extends Thread {
         private BlockingQueue<Message> sendingQueue;
@@ -88,19 +95,10 @@ public class Node {
         public void run() {
             sendPINGs.start();
             sendPONGs.start();
-//            sendRoutingInfo.start();
+            sendRoutingInfo.start();
             while (true) {
                 try {
-                    if (neighbours.size() == 3) {
-
-                        for (Byte dest: neighbours.keySet()) {
-                            System.out.print("Destination:");
-                            System.out.println(dest);
-                            System.out.println("Next hop:");
-                            System.out.println(neighbours.get(dest));
-                        }
-                    }
-                    Thread.sleep(1000);
+                    Thread.sleep(10000);
                     //TODO: routing sequence
                 } catch (InterruptedException e) {
                     System.out.println("Failed to send data. " + e);
@@ -120,7 +118,7 @@ public class Node {
     public class sendPINGsThread extends Thread {
 
         private final long timeInterval = 3000;
-        // ≈ ??% probability to send
+        // ≈ 20% probability to send
         boolean send;
         //counts how many PINGs a node has sent, so overtime it can decrease the rate it's sending them at
         int counter;
@@ -186,7 +184,7 @@ public class Node {
     }
 
     /**
-     * A separate thread for sending a Nodes routing information at a specified time interval.
+     * A separate thread for sending a nodes routing information at a specified time interval.
      *
      * Before it starts it waits 10 seconds so the nodes can first discover their neighbours.
      */
@@ -200,12 +198,18 @@ public class Node {
             } catch (InterruptedException e) {
                 System.err.println("Failed to send routing table.");
             }
-
-            while (true) {
-                LinkStateRoutingPacket routingPacket = new LinkStateRoutingPacket(ip, neighbours);
+            if (routingMessagesToSend.size() == 0) {
+                LinkStateRoutingPacket routingPacket = new LinkStateRoutingPacket(getIp(), routingTable);
                 routingMessage = routingPacket.convertToMessage();
                 try {
-                    putMessageInSendingQueue(routingMessage);
+                    routingMessagesToSend.put(routingMessage);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            while (true) {
+                try {
+                    putMessageInSendingQueue(routingMessagesToSend.take());
                     Thread.sleep(10000);
                 } catch (InterruptedException e) {
                     System.out.println("Node failed to send routing info " + e);
@@ -223,11 +227,14 @@ public class Node {
         public receiveThread(BlockingQueue<Message> receivedQueue){
             super();
             this.receivedQueue = receivedQueue;
+            receivedDataQueue = new LinkedBlockingQueue<>();
+            receivedShortDataQueue = new LinkedBlockingQueue<>();
         }
 
         public void printByteBuffer(ByteBuffer bytes, int bytesLength){
             for(int i=0; i<bytesLength; i++){
                 System.out.print(  ( bytes.get(i) ) );
+//                System.out.println(String.format("%8s",Integer.toBinaryString(bytes.get(i))).replace(' ','0'));
             }
         }
 
@@ -238,53 +245,83 @@ public class Node {
                     MessageType type = m.getType();
                     switch (type) {
                         case DATA_SHORT -> {
+                            receivedShortDataQueue.put(m);
+                            //Whatever we receive means the sender is our neighbour
+                            //We put the sender in the recently received list
+                            if (!(m.getData().get(0) == getIp())) {
+                                recentlyReceived.add(m.getData().get(0));
+                            }
                             //------------------- RECEIVING A PING -------------------//    //[sender of PING] + [01000000]
                             if (m.getData().get(1) == 64) {                                 //only if is message is SYN, send a response
                                 System.out.println(getIp() + " received a PING. ");
                                 printByteBuffer(m.getData(), m.getData().capacity());
                                 System.out.println();
-                                if (m.getData().get(0) == getIp()) {                        //if the sender has the same ip as us, we change ours
-                                    ip =(new Random().nextInt((int) System.currentTimeMillis())) % 64;
-                                    System.out.println("Someone has the same IP as us, so we changed ours to: " + ip);
-                                    sendPING();
-                                } else if(m.getData().get(0) != getIp()) {
-                                    PONGsToSend.put(m.respondToDiscoverySYN((byte) getIp()));
-                                }
+                                PONGsToSend.put(m.respondToDiscoverySYN((byte) getIp()));   //send a response through sending thread
                             }
-                            //------------------- RECEIVING A PONG -------------------//
-                            else if ((m.getData().get(1))  == (byte) (getIp() + 128)) { //if message is ACK, just add to neighbour's map
+                            //------------------- RECEIVING A PONG -------------------//    //[the node that ACKed our SYN] + [00000000]
+                            else if ((m.getData().get(1))  == (byte) (getIp() + 128)) {                          //if message is ACK, just add to neighbour's map
                                 System.out.println(getIp() + " received a PONG from " + m.getData().get(0) + " .");
-                                neighbours.put(m.getData().get(0),m.getData().get(0));
-                                recentlyReceivedPONGs.put(m.getData().get(0));
+                                routingTable.put(m.getData().get(0),m.getData().get(0));
                             }
                         }
                         case DATA -> {
                             System.out.print("DATA: ");
                             printByteBuffer(m.getData(), m.getData().capacity());
-                            //------------------- RECEIVING SYN ROUTING TABLE -------------------//
+//                            for (Byte dest: neighbours.keySet()) {
+//                                System.out.println(dest);
+//                            }
+                            receivedDataQueue.put(m);
+                            //------------------- RECEIVING A ROUTING MESSAGE -------------------//
 
-                            if (m.getData().get(1) >> (byte) 4 == 4) {           //if we receive a SYN routing table we first read the routing table
+                            //When we receive a DATA message we check the flag to see if corresponds to a routing message
+                            if (m.getData().get(1) >> (byte) 4 == 4) {
+                                //FIRST --- we add the sender to our routing table and to the recently received list
+                                routingTable.put(m.getData().get(0),m.getData().get(0));
+                                recentlyReceived.add(m.getData().get(0));
 
                                 ArrayList<Byte> senderNeighbours = m.readReceivedRoutingTable();
                                 ArrayList<Byte> ourNeighbours = getNodesInRange();
 
-                                //FIRST --- add only the destinations we currently don't have in range with next hop - the sender of the routing table
+                                //SECOND --- add only the destinations we currently don't have in range
+                                //with next hop - the sender of the routing table
                                 for (Byte senderNeighbour : senderNeighbours) {
-                                    neighbours.putIfAbsent(senderNeighbour, m.getData().get(0));
+                                    if (senderNeighbour!=getIp() && !routingTable.containsKey(senderNeighbour)) {
+                                        routingTable.put(senderNeighbour, m.getData().get(0));
+                                    }
                                 }
-                                //SECOND - check if the nodes that are the same as in our routing table, we are still in direct contact with by checking if we have received a PONG from them recently
+
+                                //THIRD --- if the topology has changed we remove the old info, so it can update anew
                                 for (Byte ourNeighbour : ourNeighbours) {
-                                    for (Byte senderNeighbour : senderNeighbours) {
-
-                                        if (ourNeighbour.equals(senderNeighbour)) {
-
-                                            if (!hasRecentlyReceivedPONG(ourNeighbour)) {            //if we haven't received a PONG from that IP, update it
-                                                neighbours.put(ourNeighbour, m.getData().get(0));    //with next hop being the sender of the routing table
-                                            }
+                                    //if that IP is not our neighbour anymore, remove it
+                                    if (!hasRecentlyReceivedPONG(ourNeighbour)) {
+                                        //routingTable.put(ourNeighbour, m.getData().get(0));
+                                        routingTable.remove(ourNeighbour);
+                                        //if we used that IP for a next hop as well, remove it
+                                        if (routingTable.containsValue(ourNeighbour)) {
+                                            //routingTable.put(findKey(routingTable, ourNeighbour), m.getData().get(0));
+                                            routingTable.remove((findKey(routingTable, ourNeighbour)), ourNeighbour);
                                         }
                                     }
                                 }
+
+                                //controlling the list's size to not exceed 20
+                                //removing the excessive  information in the front
+                                while (recentlyReceived.size() > 20) {
+                                    recentlyReceived.remove(0);
+                                }
+
+                                for (int j = 1; j < recentlyReceived.size(); j++) {
+                                    System.out.println("Recently received PONG " + recentlyReceived.get(recentlyReceived.size() - j) + " with INDEX " + ( recentlyReceived.size() - j));
+                                }
+
+                                for (Byte b: routingTable.keySet()) {
+                                    System.out.println("\nDestination: " + b);
+                                    System.out.println("Next Hop: " + routingTable.get(b));
+                                }
                             }
+                            //with the updated routing table we create a new routing message, we put it in the queue
+                            LinkStateRoutingPacket LSP1 = new LinkStateRoutingPacket(getIp(), routingTable);
+                            routingMessagesToSend.put(LSP1.convertToMessage());
                         }
                         case HELLO -> {
                             System.out.println("HELLO");
@@ -311,25 +348,14 @@ public class Node {
             }
         }
     }
-
-    private class receiveDataShortThread extends Thread {
-
-         @Override
-        public void run() {
-
-             while (true) {
-
-             }
-         }
-    }
     //---------------------------------------------- End of receive thread ----------------------------------------------//
 
     public int getIp() {
         return ip;
     }
 
-    public HashMap<Byte,Byte> getNeighbours() {
-        return neighbours;
+    public HashMap<Byte,Byte> getRoutingTable() {
+        return routingTable;
     }
 
     /**
@@ -339,8 +365,8 @@ public class Node {
      */
     public ArrayList<Byte> getNodesInRange() {
         ArrayList<Byte> directNeighbours = new ArrayList<>();
-        for (Byte destination: neighbours.keySet()) {
-            if ((byte)destination == neighbours.get(destination)) {  //we only add to the list if the key is the same as the value
+        for (Byte destination: routingTable.keySet()) {
+            if ((byte)destination == routingTable.get(destination)) {  //we only add to the list if the key is the same as the value
                 directNeighbours.add(destination);
             }
         }
@@ -348,23 +374,35 @@ public class Node {
     }
 
     /**
-     * Checks the last 5 PINGs we have received, if at least one of them is from the specified IP.
+     * Finds the key of a given HashMap, knowing the corresponding value
+     * @param map from which we need a key
+     * @param value to check
+     * @return the key mapped to this value
+     */
+    public Byte findKey(Map<Byte, Byte> map, Byte value) {
+        Byte result = null;
+        for ( Byte key : map.keySet() ) {
+            if (map.get(key).equals(value)) {
+                result = key;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Checks the last 20 PINGs we have received, if at least one of them is from the specified IP.
      * @param IP to check
-     * @return true if we have received a PING from the specified IP in the last 5 PINGs
+     * @return true if we have received a PING from the specified IP in the last 20 PINGs
      */
     public boolean hasRecentlyReceivedPONG(byte IP){
-        int i = 0;
-        while (i < 5) {
-            try {
-                if (recentlyReceivedPONGs.take() == IP) {
-                    return true;
-                }
-                i++;
-            } catch (InterruptedException e) {
-                System.err.println("error");
-            }
+        int i = 1;
+        while (i < 20) {
+            if (i <= recentlyReceived.size() && recentlyReceived.get(recentlyReceived.size() - i).equals(IP)) {
+                return true;
+            } i++;
         }
         return false;
     }
 }
+
 
