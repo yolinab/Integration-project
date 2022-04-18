@@ -21,8 +21,9 @@ public class LinkStateRoutingPacket implements Packet{
     /*
                  Source             Flag(SYN/ACK)    Number of neighbours
             |_|_||_|_||_|_||_|_|      |_|_||_|_|          |_|_||_|_|
-                Placeholders for direct neighbours
+                 Destination              Destination
             |_|_||_|_||_|_||_|_|      |_|_||_|_||_|_||_|_|
+                 Destination
             |_|_||_|_||_|_||_|_|
      */
     /**
@@ -34,7 +35,7 @@ public class LinkStateRoutingPacket implements Packet{
     public LinkStateRoutingPacket(int sourceIp, HashMap<Byte,Byte> nodesInRange) {
         super();
         this.sourceIp = sourceIp;
-        buffer = ByteBuffer.allocate(6);
+        buffer = ByteBuffer.allocate(5);
         buffer.put((byte) sourceIp);
         buffer.put((byte) (64 + nodesInRange.size()));               //SYN flag 01000000 + size
         for (Byte dest: nodesInRange.keySet()) {
