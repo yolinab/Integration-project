@@ -14,7 +14,7 @@ import java.util.HashMap;
  * MessageType: DATA
  */
 
-public class LinkStatePacket implements Packet{
+public class LinkStateRoutingPacket implements Packet{
 
     private final int sourceIp;
     private ByteBuffer buffer;
@@ -28,12 +28,13 @@ public class LinkStatePacket implements Packet{
     /**
      * Makes an initial SYN packet containing the IP of the creator,
      * a set SYN flag(4 bits), number of neighbors(4 bits) and 3 bytes for the list of neighbours.
+     *
      */
     //@requires nodesInRange != null && nodesInRange.size() < 4;
-    public LinkStatePacket(int sourceIp, HashMap<Byte,Byte> nodesInRange) {
+    public LinkStateRoutingPacket(int sourceIp, HashMap<Byte,Byte> nodesInRange) {
         super();
         this.sourceIp = sourceIp;
-        buffer = ByteBuffer.allocate(5);
+        buffer = ByteBuffer.allocate(6);
         buffer.put((byte) sourceIp);
         buffer.put((byte) (64 + nodesInRange.size()));               //SYN flag 01000000 + size
         for (Byte dest: nodesInRange.keySet()) {

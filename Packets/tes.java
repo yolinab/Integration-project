@@ -1,33 +1,71 @@
 package Packets;
 
+import Network.Node;
+import client.Message;
+import client.MessageType;
+
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class tes {
 
+
     public static void main(String[] args) {
 
-        HashMap<Byte,Byte> neighbours = new HashMap<>();
-        neighbours.put((byte)1,(byte)1);
-        neighbours.put((byte)2,(byte)2);
-        neighbours.put((byte)3,(byte)3);
 
-        LinkStatePacket packet = new LinkStatePacket(63, neighbours);       // 00111111
-
-        ByteBuffer buffer = packet.getByteBuffer();
-
-        System.out.println("Bytes:");
-        for (int i = 0; i<buffer.capacity(); i++) {
-            System.out.println(String.format("%8s", Integer.toBinaryString(buffer.get(i))).replace(' ', '0'));
+        DiscoveryPacket packet = new DiscoveryPacket(63);
+        System.out.println("Intial packet:");
+        for (int i = 0; i < packet.getByteBuffer().capacity(); i++) {
+            System.out.println(String.format("%8s",Integer.toBinaryString(packet.getByteBuffer().get(i))).replace(' ', '0'));
         }
 
+        Message message = new Message(MessageType.DATA,packet.getByteBuffer());
+        message.respondToDiscoverySYN((byte)5);
+        ByteBuffer buffer = message.getData();
+        System.out.println("After response:");
+        for (int i = 0; i < buffer.capacity(); i++) {
+            System.out.println(String.format("%8s",Integer.toBinaryString(buffer.get(i) & 0xFF)).replace(' ', '0'));
+        }
+
+//        byte b1 = (byte) 255;
+
+//        tes test = new tes();
+//
+//        ArrayList<Byte> inRNG = test.getNodesInRange();
+//        for (int i = 0; i < inRNG.size(); i++) {
+//            System.out.println(inRNG.get(i));
+//        }
+
+//        LinkStateRoutingPacket packet = new LinkStateRoutingPacket(63, neighbours);       // 00111111
+//
+//        ByteBuffer buffer = packet.getByteBuffer();
+//
+//        System.out.println("Bytes:");
+//        for (int i = 0; i < buffer.capacity(); i++) {
+//            System.out.println(String.format("%8s", Integer.toBinaryString(buffer.get(i))).replace(' ', '0'));
+//        }
+//
+//    }
+    }
+
+//    public ArrayList<Byte> getNodesInRange() {
+//        ArrayList<Byte> directNeighbours = new ArrayList<>();
+//        for (Byte destination: neighbours.keySet()) {
+//
+//            if ((byte)destination == neighbours.get(destination)) {
+//                directNeighbours.add(destination);
+//            }
+//        }
+//        return directNeighbours;
+//    }
+}
 //        ByteBuffer buffer = ByteBuffer.allocate(2);
 //
 //        buffer.put((byte) 63);              //00111111 for source IP(63)
 //        buffer.put((byte) (64 + 55));       //01 110111 for 01 SYN flag(64) and a placeholder for neighbours ip(55)
 
-        //+128 for ACK flag (10000000)
+//+128 for ACK flag (10000000)
 //        for (int i = 0; i < buffer.capacity(); i++) {
 //            System.out.println(String.format("%8s",Integer.toBinaryString(buffer.get(i))).replace(' ', '0'));
 //        }
@@ -62,7 +100,7 @@ public class tes {
 //        for (int i = 0; i < byteBuffer.capacity(); i++) {
 //            System.out.print((char)byteBuffer.get(i));
 //        }
-    }
+
     //        private Message consoleInput() {
 //            try {
 //                BufferedReader inp = new BufferedReader(new InputStreamReader(System.in));
@@ -105,4 +143,22 @@ public class tes {
 //            System.out.println(String.format("%8s", Integer.toBinaryString(bytes.get(i))).replace(' ', '0'));
 //        }
 //    }
-}
+
+    //debugging printing of received routing table
+//    HashMap<Byte, Byte> neighbours = new HashMap<>();
+//        neighbours.put((byte)1,(byte)1);
+//        neighbours.put((byte)2,(byte)2);
+//        neighbours.put((byte)3,(byte)3);
+//    LinkStateRoutingPacket packet = new LinkStateRoutingPacket(64,neighbours);
+//
+//    ByteBuffer buffer = packet.getByteBuffer();
+//        for (int i = 0; i < buffer.capacity(); i++) {
+//        System.out.println(String.format("%8s",Integer.toBinaryString(buffer.get(i))).replace(' ','0'));
+//    }
+
+//    ArrayList<Byte> readNeigh = packet.convertToMessage().readReceivedRoutingTable();
+//        for (int i = 0; i < readNeigh.size(); i++) {
+//        System.out.println(readNeigh.get(i));
+//    }
+
+
