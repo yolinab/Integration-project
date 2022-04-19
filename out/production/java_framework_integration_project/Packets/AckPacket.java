@@ -10,6 +10,7 @@ public class AckPacket implements Packet {
     ByteBuffer buffer;
 
     public AckPacket(byte ack) {
+        buffer = ByteBuffer.allocate(2);
         buffer.put(ack);
         buffer.put((byte) 1);
     }

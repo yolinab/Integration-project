@@ -31,9 +31,9 @@ public class DataPacket implements Packet {
      * @param syn
      * @param payload
      */
-    public DataPacket(int sourceIP, int destIp, int syn, byte[] payload) {
+    public DataPacket(int sourceIP, byte destIp, int syn, byte[] payload) {
         super();
-        //buffer = ByteBuffer.allocate(2);
+        buffer = ByteBuffer.allocate(32);
         buffer.put((byte) (sourceIp));
         buffer.put((byte) (destIp));
         buffer.put((byte) 128);        //flag 10000000

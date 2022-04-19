@@ -12,6 +12,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -119,7 +120,7 @@ public class Node {
             sendPINGs.start();
             sendPONGs.start();
             sendRoutingInfo.start();
-            //sendDataThread.start();
+            sendDataThread.start();
             while (true) {
                 try {
                     Thread.sleep(10000);
@@ -151,20 +152,20 @@ public class Node {
         @Override
         public void run() {
             while (true) {
-                send = new Random().nextInt(2) == 0; //how to make it different for every time it has to send, because now it's unfair
+                send = new Random().nextInt(8) == 0; //how to make it different for every time it has to send, because now it's unfair
 
                 if (mediumIsFree && PONGsToSend.isEmpty() && counter < 5) {     //we are still in discovery phase
-                    System.out.println(getIp() + " is sending a PING.");
+                  //  System.out.println(getIp() + " is sending a PING.");
                     sendPING();
                     counter++;
                 }
                 while (send) {
                     if (mediumIsFree && PONGsToSend.isEmpty() && send) {            //we decrease the rate at which we are sending
-                        System.out.println(getIp() + " is sending a PING.");
+                      //  System.out.println(getIp() + " is sending a PING.");
                         sendPING();
                         counter++;
                     }
-                    send = new Random().nextInt(3) == 0;
+                    send = new Random().nextInt(9) == 0;
                 }
                 try {
                     Thread.sleep(timeInterval);
@@ -189,17 +190,17 @@ public class Node {
         @Override
         public void run() {
             while (true) {
-                send =(new Random().nextInt(2) == 0);
+                send =(new Random().nextInt(8) == 0);
 
                 while (send) {
                     try {
                         //If we have received SYNs, send ACKs
                         if (mediumIsFree && PONGsToSend.size() > 0) {
-                            System.out.println(getIp() + " is sending a PONG.");
+                          //  System.out.println(getIp() + " is sending a PONG.");
                             putMessageInSendingQueue(PONGsToSend.take());
                         }
                         Thread.sleep(timeInterval);
-                        send = (new Random().nextInt(3) == 0);
+                        send = (new Random().nextInt(9) == 0);
                     } catch (InterruptedException e) {
                         System.out.println("Failed to send data. " + e);
                         break;
@@ -236,12 +237,12 @@ public class Node {
                 }
             }
             while (true) {
-                send =(new Random().nextInt(2) == 0);
+                send =(new Random().nextInt(8) == 0);
                 while (send) {
                     try {
                         putMessageInSendingQueue(routingMessagesToSend.take());
                         Thread.sleep(10000);
-                        send = (new Random().nextInt(3) == 0);
+                        send = (new Random().nextInt(9) == 0);
 
                     } catch (InterruptedException e) {
                         System.out.println("Node failed to send routing info " + e);
@@ -272,12 +273,15 @@ public class Node {
                 //startInput = System.currentTimeMillis();              //attempt to provide time for input N2
 
                 System.out.println("Input destination/message");
-                input = inp.readLine();                                 // read input
+                input = inp.readLine();// read input
                 String[] parsed = input.split("/");
+                for (int i =0; i <parsed.length; i++) {
+                    System.out.println("\n" + parsed[i]);
+                }
                 System.out.println(input);                              //for debugging
 
                 byte[] payloadBytes = parsed[1].getBytes();           // get bytes from input
-                dataPacket = new DataPacket(getIp(), Integer.getInteger(parsed[0]), syn, payloadBytes);
+                dataPacket = new DataPacket(getIp(), Byte.parseByte(parsed[0]), syn, payloadBytes);
 
                 //TEST
 //                String string = "Hello, nice to meet you.";
@@ -288,7 +292,7 @@ public class Node {
 
                 //after timeout if we haven't received an ack for the previous message retransmit
                 if (System.currentTimeMillis() > end && !receivedACKs.contains((byte) syn)) {
-                    System.out.println("Retransmitting packet with SYN " + syn);
+                   // System.out.println("Retransmitting packet with SYN " + syn);
                     putMessageInSendingQueue(dataPacket.convertToMessage());
                 } else if (receivedACKs.contains((byte) syn)) {
                     syn++;                                          //if all the ACKs are received increment the syn for the next message
@@ -351,34 +355,34 @@ public class Node {
                                 if (!ourNeighbours.contains(m.getData().get(0))) {
                                     ourNeighbours.add(m.getData().get(0));
                                 }
-                                System.out.println("Receive DATA_SHORT");
-                                for (Byte b: routingTable.keySet()) {
-                                    System.out.println("\nDestination: " + b);
-                                    System.out.println("Next Hop: " + routingTable.get(b));
-                                }
+                               // System.out.println("Receive DATA_SHORT");
+//                                for (Byte b: routingTable.keySet()) {
+//                                    System.out.println("\nDestination: " + b);
+//                                    System.out.println("Next Hop: " + routingTable.get(b));
+//                                }
                             }
 
                             //------------------- RECEIVING A PING -------------------//    //[sender of PING] + [01000000]
                             if (m.getData().get(1) == 64) {                                 //only if is message is SYN, send a response
-                                System.out.print(getIp() + " received a PING.from " + m.getData().get(0) + " .");
-                                printByteBuffer(m.getData(), m.getData().capacity());
+                               // System.out.print(getIp() + " received a PING.from " + m.getData().get(0) + " .");
+                                //printByteBuffer(m.getData(), m.getData().capacity());
                                 PONGsToSend.put(m.respondToDiscoverySYN((byte) getIp()));   //send a response through sending thread
                             }
                             //------------------- RECEIVING A PONG -------------------//    //[the node that ACKed our SYN] + [00000000]
                             else if ((m.getData().get(1))  == 0) {                          //if message is ACK, just add to neighbour's map
-                                System.out.print(getIp() + " received a PONG from " + m.getData().get(0) + " .");
+                               // System.out.print(getIp() + " received a PONG from " + m.getData().get(0) + " .");
                                 //routingTable.put(m.getData().get(0),m.getData().get(0));
                             }
                             //------------------- RECEIVING A DIRECTED PING -------------------//
 
                             //if the second byte is out IP, we are being checked
                             else if ((m.getData().get(1) - 64) == getIp()) {
-                                System.out.println(m.getData().get(0) + " wants to check if we are still in range.");
+                               // System.out.println(m.getData().get(0) + " wants to check if we are still in range.");
                                 PONGsToSend.put(m.respondToDirectedPING());
                             }
                             //------------------- RECEIVING A DIRECTED PONG -------------------//
                             else if ((m.getData().get(1))  == (byte) (getIp() + 128)) {                          //if message is ACK, just add to neighbour's map
-                                System.out.println(getIp() + " received a PONG from " + m.getData().get(0) + " .");
+                                //System.out.println(getIp() + " received a PONG from " + m.getData().get(0) + " .");
                                 //routingTable.put(m.getData().get(0),m.getData().get(0));
                             }
                             //------------------- RECEIVING AN ACK -------------------//
@@ -387,7 +391,7 @@ public class Node {
                             }
                         }
                         case DATA -> {
-                            System.out.print("DATA: ");
+                            //System.out.print("DATA: ");
                            // printByteBuffer(m.getData(), m.getData().capacity());
                             receivedDataQueue.put(m);
                             //------------------- RECEIVING A ROUTING MESSAGE -------------------//
@@ -405,7 +409,7 @@ public class Node {
                                 //with next hop - the sender of the routing table
                                 int i = 0;
                                 for (Byte senderDest : senderDestinations) {
-                                    System.out.println("Destination of " + m.getData().get(0) + " is " + senderDest);
+                                   // System.out.println("Destination of " + m.getData().get(0) + " is " + senderDest);
                                     if (senderDest!=getIp() && !routingTable.containsKey(senderDest)) {
                                         routingTable.put(senderDest, m.getData().get(0));
                                     }
@@ -438,15 +442,15 @@ public class Node {
                                     recentlyReceived.remove(0);
                                 }
 
-                                for (int j = 1; j < recentlyReceived.size(); j++) {
-                                    System.out.println("Recently received PONG " + recentlyReceived.get(recentlyReceived.size() - j) + " with INDEX " + ( recentlyReceived.size() - j));
-                                }
-                                System.out.println("Receive DATA");
-
-                                for (Byte b: routingTable.keySet()) {
-                                    System.out.println("\nDestination: " + b);
-                                    System.out.println("Next Hop: " + routingTable.get(b));
-                                }
+//                                for (int j = 1; j < recentlyReceived.size(); j++) {
+//                                    System.out.println("Recently received PONG " + recentlyReceived.get(recentlyReceived.size() - j) + " with INDEX " + ( recentlyReceived.size() - j));
+//                                }
+//                                System.out.println("Receive DATA");
+//
+//                                for (Byte b: routingTable.keySet()) {
+//                                    System.out.println("\nDestination: " + b);
+//                                    System.out.println("Next Hop: " + routingTable.get(b));
+//                                }
                             }
                             //with the updated routing table we create a new routing message, we put it in the queue
                             LinkStateRoutingPacket LSP1 = new LinkStateRoutingPacket(getIp(), routingTable);
@@ -454,19 +458,26 @@ public class Node {
 
                             //------------------- RECEIVING A DATA MESSAGE -------------------//
 
-                            if (m.getData().get(2) == (byte) 128) {                     //Data message flag = 10000000
+                            if (m.getData().get(2) == (byte) 128) {     //Data message flag = 10000000
+                                byte[] payload = new byte[28];
+                                for (int i = 4; i < m.getData().capacity(); i++) {
+                                    payload[i - 4] = m.getData().get(4);
+//                                    if (m.getData().get(i)!=(byte)0) {
+//                                        String string = String.valueOf(m.getData().get(i));
+//                                        System.out.println(string);
+//                                        message.append(string);
+//                                    }
+                                }
                                 System.out.println("Received message");
-                                StringBuilder message = null;
+                                String string = new String(payload);
+                                System.out.println(string);
+                                StringBuilder message = new StringBuilder("");
 
                                 //Build the message
-                                for (int i = 4; i < m.getData().capacity(); i++) {
-                                    String string = String.valueOf(m.getData().get(i));
-                                    System.out.println(string);
-                                    message.append(string);
-                                }
+
 
                                 //we want to send an ACK - the same as the SYN we received
-                                System.out.println(message);
+                               // System.out.println(message);
                                 byte sendAck = m.getData().get(3);
                                 ackToSend.put((new AckPacket(sendAck)).convertToMessage());
                             }
@@ -477,15 +488,15 @@ public class Node {
                             mediumIsFree = true;
                         }
                         case FREE -> {
-                            System.out.println("FREE");
+                            //System.out.println("FREE");
                             mediumIsFree = true;
                         }
                         case BUSY -> {
-                            System.out.println("BUSY");
+                           // System.out.println("BUSY");
                             mediumIsFree = false;
                         }
                         case SENDING -> mediumIsFree = false;
-                        case DONE_SENDING -> System.out.println("DONE_SENDING");
+                       // case DONE_SENDING -> System.out.println("DONE_SENDING");
                         case END -> {
                             System.out.println("END");
                             System.exit(0);
