@@ -1,32 +1,56 @@
 package Packets;
 
-import Network.Node;
 import client.Message;
 import client.MessageType;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 
 public class tes {
 
+    private static HashMap<Integer,String> getConsoleInput() {
+        HashMap<Integer,String> message = new HashMap<>();
+        try {
+            BufferedReader inp = new BufferedReader(new InputStreamReader(System.in));
+            String input = inp.readLine();
+            String[] parsed = input.split("/");
+            int dest = Integer.parseInt(parsed[0]);
+            String chat = parsed[1];
+            message.put(dest,chat);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return message;
+    }
+
 
     public static void main(String[] args) {
 
+        HashMap<Integer,String> data = getConsoleInput();
 
-        DiscoveryPacket packet = new DiscoveryPacket(63);
-        System.out.println("Intial packet:");
-        for (int i = 0; i < packet.getByteBuffer().capacity(); i++) {
-            System.out.println(String.format("%8s",Integer.toBinaryString(packet.getByteBuffer().get(i))).replace(' ', '0'));
+        for (Integer key: data.keySet()) {
+            System.out.println("Key: " + key);
+            System.out.println("Chat: " + data.get(key));
         }
 
-        Message message = new Message(MessageType.DATA,packet.getByteBuffer());
-        message.respondToDiscoverySYN((byte)5);
-        ByteBuffer buffer = message.getData();
-        System.out.println("After response:");
-        for (int i = 0; i < buffer.capacity(); i++) {
-            System.out.println(String.format("%8s",Integer.toBinaryString(buffer.get(i) & 0xFF)).replace(' ', '0'));
-        }
+
+//        DiscoveryPacket packet = new DiscoveryPacket(63);
+//        System.out.println("Intial packet:");
+//        for (int i = 0; i < packet.getByteBuffer().capacity(); i++) {
+//            System.out.println(String.format("%8s",Integer.toBinaryString(packet.getByteBuffer().get(i))).replace(' ', '0'));
+//        }
+//
+//        Message message = new Message(MessageType.DATA,packet.getByteBuffer());
+//        message.respondToDiscoverySYN((byte)5);
+//        ByteBuffer buffer = message.getData();
+//        System.out.println("After response:");
+//        for (int i = 0; i < buffer.capacity(); i++) {
+//            System.out.println(String.format("%8s",Integer.toBinaryString(buffer.get(i) & 0xFF)).replace(' ', '0'));
+//        }
 
 //        byte b1 = (byte) 255;
 
@@ -162,3 +186,82 @@ public class tes {
 //    }
 
 
+/**
+ * Fragmentation
+ */
+//    private HashMap<Integer, ArrayList<Message>> getConsoleInput() {
+//        HashMap<Integer,ArrayList<Message>> input = new HashMap<>();
+//        ArrayList<Message> messages = new ArrayList<>();
+//        DataPacket dataPacket;
+//        try {
+//            BufferedReader inp = new BufferedReader(new InputStreamReader(System.in));
+//            System.out.println("Please input chat message into the format: destination/message");
+//            String[] parsed = inp.readLine().split("/");
+//
+//            int dest = Integer.parseInt(parsed[0]);
+//            byte[] payloadBytes = parsed[1].getBytes();
+//
+//            if (payloadBytes.length > 28) {
+//                int sw;
+//                if (payloadBytes.length % 28 == 0){sw = payloadBytes.length / 28;}
+//                else {sw = (payloadBytes.length / 28) + 1;}
+//
+//                for (int i = 1; i <= sw; i++) {
+//
+//                    //TODO - fragment payloadBytes
+//                    dataPacket = new DataPacket(node.getIp(),dest,sw,i,payloadBytes);
+//                    messages.add(dataPacket.convertToMessage());
+//                }
+//            } else {
+//                dataPacket = new DataPacket(node.getIp(),dest,1,1,payloadBytes);
+//                messages.add(dataPacket.convertToMessage());
+//            }
+//            input.put(dest,messages);
+//
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//        return input;
+//    }
+//
+//
+//    private ArrayList<byte[]> fragmentByteArray (byte[] byteArray) {
+//        ArrayList<byte[]> listOfArrays = new ArrayList<>();
+//        int sw;
+//        int i = 0;
+//        if (byteArray.length % 28 == 0){sw = byteArray.length / 28;}
+//        else {sw = (byteArray.length / 28) + 1;}
+//        byte[] current = new byte[];
+//
+//        while (i <= sw) {
+//            for (int j = i*28; j < byteArray.length - sw * 28; j++) {
+//                current[j] = byteArray[j];
+//                //TODO - finish fragmentation
+//            }
+//        }
+//    }
+
+//------------------- RECEIVING ROUTING TABLE -------------------//
+//FROM RECEIVING THREAD DATA
+//                            if (m.getData().get(1) >> (byte) 4 == 4) {           //if we receive a SYN routing table we first read the routing table
+//
+//                                    ArrayList<Byte> senderNeighbours = m.readReceivedRoutingTable();
+//        ArrayList<Byte> ourNeighbours = getNodesInRange();
+//
+//        //FIRST --- add only the destinations we currently don't have in range with next hop - the sender of the routing table
+//        for (Byte senderNeighbour : senderNeighbours) {
+//        neighbours.putIfAbsent(senderNeighbour, m.getData().get(0));
+//        }
+//        //SECOND - check if the nodes that are the same as in our routing table, we are still in direct contact with by checking if we have received a PONG from them recently
+//        for (Byte ourNeighbour : ourNeighbours) {
+//        for (Byte senderNeighbour : senderNeighbours) {
+//
+//        if (ourNeighbour.equals(senderNeighbour)) {
+//
+//        if (!hasRecentlyReceivedPONG(ourNeighbour)) {            //if we haven't received a PONG from that IP, update it
+//        neighbours.put(ourNeighbour, m.getData().get(0));    //with next hop being the sender of the routing table
+//        }
+//        }
+//        }
+//        }
+//        }
