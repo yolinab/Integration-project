@@ -15,12 +15,13 @@ public class DataPacket implements Packet {
 
     private ByteBuffer buffer;
     private final int headerLenght = 4;
+    private final int TTL = 6;
 
     /*
                    Source                  Destination
             |_|_||_|_||_|_||_|_|      |_|_||_|_||_|_||_|_|
 
-                    Size                       ?
+              Length of payload                TTL
             |_|_||_|_||_|_||_|_|      |_|_||_|_||_|_||_|_|
 
                    Payload
@@ -32,17 +33,16 @@ public class DataPacket implements Packet {
      *
      * @param sourceIP the address of the sender
      * @param destIp the intended destination of the message
-     * @param sw sending window
-     * @param seq the sequence number of the packet
+     * @param lenght of the payload
      * @param payload the actual text data in the form of a byte array
      */
-    public DataPacket(int sourceIP, int destIp, int sw, int seq, byte[] payload) {
+    public DataPacket(int sourceIP, int destIp, int lenght, byte[] payload) {
         super();
         buffer = ByteBuffer.allocate(payload.length + headerLenght);
         buffer.put((byte) (sourceIP));
         buffer.put((byte) (destIp));
-        buffer.put((byte) sw);
-        buffer.put((byte) seq);
+        buffer.put((byte) lenght);
+        buffer.put((byte) TTL);
         for (Byte b: payload) {
             buffer.put(b);
         }

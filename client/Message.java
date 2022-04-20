@@ -43,31 +43,15 @@ public class Message {
     }
 
     /**
-     * Creates a DIRECT PING Message.
+     * Decrements the number in the TTL segment in a DataPacket Message by 1.
      *
-     * @param sourceIp the node that want to know if they are still in range with that destination
-     * @param destIP the node the message is directed to
-     * @return DIRECT PING Message with a SYN flag
+     * @return the same message, with a TTL equal to the previous TTL - 1;
      */
-    //@requires data.capacity() == 2;
-    public Message makeDirectedPING(int sourceIp, int destIP) {               //first byte is the
-        ByteBuffer buffer = this.getData();                                     //second byte is the node that being checked
-        buffer.put(0,(byte) sourceIp);
-        buffer.put(1,(byte)(64 + destIP));
-        return new Message(MessageType.DATA_SHORT,buffer);
-    }
-
-    /**
-     * Creates a response to a DIRECT PING Message.
-     *
-     * @return the response to a DIRECT PING Message with an ACK flag
-     */
-    public Message respondToDirectedPING() {
-        ByteBuffer buffer = this.getData();                     //if the initial data is right we just remove the SYN from the second byte of the initial buffer
-        byte initByte2 = buffer.get(1);
-        buffer.put(0,(byte)(initByte2 - 64));            //the ACK contains our IP as source and the initial sender as the second byte with an ACK flag
-        buffer.put(1,(byte) 128);                        // 10000000 - "ACK" for a directed PING
-        return new Message(MessageType.DATA_SHORT,buffer);
+    public Message decrementTTL() {
+        ByteBuffer buffer = this.getData();
+        int TTL = buffer.get(3);
+        buffer.put(3,(byte) (TTL - 1));
+        return new Message(MessageType.DATA,buffer);
     }
 
     /**

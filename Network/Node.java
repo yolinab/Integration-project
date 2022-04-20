@@ -116,25 +116,19 @@ public class Node {
         @Override
         public void run() {
             while (true) {
-//                send =(new Random().nextInt(8) == 0);
-
-                while (true) {
-                    if (mediumIsFree && PONGsToSend.isEmpty()) {//we are still in discovery phase
+                if (mediumIsFree && PONGsToSend.isEmpty()) {
 //                        System.out.println(getIp() + " is sending a PING.");
-                        sendPING();
-//                        counter++;
-                    }
-                    try {
-                        Thread.sleep(timeInterval);
-                    } catch (InterruptedException e) {
-                        System.err.println("Failed to send PING " + e);
-                        break;
-                    }
-//                    send = new Random().nextInt(15) == 0;
-                    timeInterval = timeInterval + 100;
-                    if (timeInterval > 20000) {
-                        timeInterval = 3000;
-                    }
+                    sendPING();
+                }
+                try {
+                    Thread.sleep(timeInterval);
+                } catch (InterruptedException e) {
+                    System.err.println("Failed to send PING " + e);
+                    break;
+                }
+                timeInterval = timeInterval + 100;
+                if (timeInterval > 20000) {
+                    timeInterval = 3000;
                 }
             }
         }
@@ -152,20 +146,15 @@ public class Node {
         @Override
         public void run() {
             while (true) {
-//                send =(new Random().nextInt(8) == 0);
-
-                while (true) {
-                    try {
-                        if (mediumIsFree && PONGsToSend.size() > 0) {
+                try {
+                    if (mediumIsFree && PONGsToSend.size() > 0) {
 //                            System.out.println(getIp() + " is sending a PONG.");
-                            putMessageInSendingQueue(PONGsToSend.take());
-                        }
-                        Thread.sleep(timeInterval);
-//                        send =(new Random().nextInt(10) == 0);
-                    } catch (InterruptedException e) {
-                        System.out.println("Failed to send data. " + e);
-                        break;
+                        putMessageInSendingQueue(PONGsToSend.take());
                     }
+                    Thread.sleep(timeInterval);
+                } catch (InterruptedException e) {
+                    System.out.println("Failed to send data. " + e);
+                    break;
                 }
             }
         }
@@ -272,13 +261,24 @@ public class Node {
 //                                    }
 //                                }
 //                            }
-                            //------------------- RECEIVING CHAT DATA -------------------//
+                            //------------------- RECEIVING A FORWARDED MESSAGE -------------------//
                             if (buffer.get(1) == getIp()) {
                                 System.out.println("Message from: " + buffer.get(0) + "...");
                                 for (int i = 4; i < buffer.get(2) + 4; i++) {
                                     System.out.print((char) buffer.get(i));
                                 }
-
+                                System.out.println();
+                            }
+                            //------------------- RECEIVING MESSAGE WITH TTL 0 -------------------//
+                            else if (buffer.get(3) == 0){
+                                //do nothing / discard packet
+                            }
+                            //------------------- RECEIVING MESSAGE NOT INTENDED FOR US -------------------//
+                            else if (buffer.get(0) != getIp()){
+                                System.out.println(getIp() + " forwarding a message toward " + buffer.get(1));
+                                System.out.println("TTL = " + buffer.get(3));
+                                putMessageInSendingQueue(m.decrementTTL());
+                                System.out.println("We set the TTL to: " + m.getData().get(3));
                             }
                         }
                         case HELLO -> {
@@ -348,6 +348,19 @@ public class Node {
             }
         }
         return false;
+    }
+
+    /**
+     * Removes a node from the routing table if it hasn't received a recent PONG from them.
+     *
+     * A PONG is considered recent if its one of the last five received PONGs in the recentlyReceivedPONGs queue.
+     */
+    public void updateRoutingTable() {
+        for (Byte key: routingTable.keySet()) {
+            if (!hasRecentlyReceivedPONG(key)) {
+                routingTable.remove(key);
+            }
+        }
     }
 }
 
