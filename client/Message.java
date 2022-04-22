@@ -55,37 +55,20 @@ public class Message {
     }
 
     /**
-     * Reads the list of neighbours from a received Link State Routing message.
+     * Reads the routing table from a received Link State Routing message.
      *
-     * @return an array containing the destinations
+     * @return an array containing the next hops to the destinations
      */
     //@requires data.capacity() == 5;
-    public ArrayList<Byte> findSenderDestinations() {
+    public ArrayList<Byte> readReceivedRoutingTable() {
         ByteBuffer buffer = this.getData();
         ArrayList<Byte> neighbours = new ArrayList<>();
 
         byte neighboursCount = (byte)(buffer.get(1) - 64);  //with removed SYN
-        for (int i = 0; i < neighboursCount; i++) {
-            neighbours.add(buffer.get(i+2));
+        for (int i = 2; i < neighboursCount + 2; i++) {
+            neighbours.add(buffer.get(i));
         }
         return neighbours;
     }
-
-//    /**
-//     * Reads the routing table from a received Link State Routing message.
-//     *
-//     * @return an array containing the next hops to the destinations
-//     */
-//    //@requires data.capacity() == 5;
-//    public ArrayList<Byte> findSenderNextHops() {
-//        ByteBuffer buffer = this.getData();
-//        ArrayList<Byte> neighbours = new ArrayList<>();
-//
-//        byte neighboursCount = (byte)(buffer.get(1) - 64);  //with removed SYN
-//        for (int i = 0; i < neighboursCount; i=i+2) {
-//            neighbours.add(buffer.get(i+3));
-//        }
-//        return neighbours;
-//    }
 
 }

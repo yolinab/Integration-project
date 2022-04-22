@@ -1,4 +1,3 @@
-package GUI;
 import Network.MyProtocol;
 
 public class Main {

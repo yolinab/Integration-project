@@ -11,12 +11,13 @@ import java.util.HashMap;
  * When a node receives a LinkStatePacket from another node, it looks through the list of the neighbours of that sender,
  * and if it doesn't contain a certain IP in its routing table,
  * it adds it as a destination, and the sender of that packet as the next hop.
+ *
+ * Header Size: 2 bytes
  * MessageType: DATA
  */
 
-public class LinkStateRoutingPacket implements Packet{
+public class LinkStateRoutingPacket{
 
-    private final int sourceIp;
     private ByteBuffer buffer;
     /*
                  Source             Flag(SYN/ACK)    Number of neighbours
@@ -29,15 +30,13 @@ public class LinkStateRoutingPacket implements Packet{
     /**
      * Makes an initial SYN packet containing the IP of the creator,
      * a set SYN flag(4 bits), number of neighbors(4 bits) and 3 bytes for the list of neighbours.
-     *
      */
     //@requires nodesInRange != null && nodesInRange.size() < 4;
     public LinkStateRoutingPacket(int sourceIp, HashMap<Byte,Byte> nodesInRange) {
         super();
-        this.sourceIp = sourceIp;
         buffer = ByteBuffer.allocate(5);
-        buffer.put(0,(byte) sourceIp);
-        buffer.put(1,(byte) (64 + nodesInRange.size()));               //SYN flag 01000000 + size
+        buffer.put((byte) sourceIp);
+        buffer.put((byte) (64 + nodesInRange.size()));               //SYN flag 01000000 + number of neighbours
         for (Byte dest: nodesInRange.keySet()) {
             buffer.put(dest);
         }

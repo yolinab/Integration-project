@@ -12,30 +12,42 @@ import java.util.HashMap;
 
 public class tes {
 
-    private static HashMap<Integer,String> getConsoleInput() {
-        HashMap<Integer,String> message = new HashMap<>();
-        try {
-            BufferedReader inp = new BufferedReader(new InputStreamReader(System.in));
-            String input = inp.readLine();
-            String[] parsed = input.split("/");
-            int dest = Integer.parseInt(parsed[0]);
-            String chat = parsed[1];
-            message.put(dest,chat);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return message;
-    }
-
 
     public static void main(String[] args) {
 
-        HashMap<Integer,String> data = getConsoleInput();
+        //debugging printing of received routing table
+//        HashMap<Byte, Byte> neighbours = new HashMap<>();
+//        neighbours.put((byte)1,(byte)2);
+//        neighbours.put((byte)2,(byte)2);
+//        neighbours.put((byte)3,(byte)3);
+//        LinkStateRoutingPacket packet = new LinkStateRoutingPacket(64,neighbours);
+//
+//        ByteBuffer buffer = packet.getByteBuffer();
+//        for (int i = 0; i < buffer.capacity(); i++) {
+//            System.out.println(String.format("%8s",Integer.toBinaryString(buffer.get(i))).replace(' ', '0'));
+//        }
+//
+//        ArrayList<Byte> nei = packet.convertToMessage().readReceivedRoutingTable();
+//        for (int i = 0; i < nei.size(); i++) {
+//            System.out.println(nei.get(i));
+//        }
+//
+//        System.out.println(getIp() + " received " + buffer.get(0) + "s' routing table");
+//        for (int i = 0; i < 5; i++) {
+//            System.out.println(String.format("%8s",Integer.toBinaryString(buffer.get(i))).replace(' ', '0'));
+//        }
 
-        for (Integer key: data.keySet()) {
-            System.out.println("Key: " + key);
-            System.out.println("Chat: " + data.get(key));
-        }
+//        ArrayList<Byte> readNeigh = packet.convertToMessage().readReceivedRoutingTable();
+//        for (int i = 0; i < readNeigh.size(); i++) {
+//            System.out.println(readNeigh.get(i));
+//        }
+
+//        HashMap<Integer,String> data = getConsoleInput();
+//
+//        for (Integer key: data.keySet()) {
+//            System.out.println("Key: " + key);
+//            System.out.println("Chat: " + data.get(key));
+//        }
 
 
 //        DiscoveryPacket packet = new DiscoveryPacket(63);
@@ -168,22 +180,6 @@ public class tes {
 //        }
 //    }
 
-    //debugging printing of received routing table
-//    HashMap<Byte, Byte> neighbours = new HashMap<>();
-//        neighbours.put((byte)1,(byte)1);
-//        neighbours.put((byte)2,(byte)2);
-//        neighbours.put((byte)3,(byte)3);
-//    LinkStateRoutingPacket packet = new LinkStateRoutingPacket(64,neighbours);
-//
-//    ByteBuffer buffer = packet.getByteBuffer();
-//        for (int i = 0; i < buffer.capacity(); i++) {
-//        System.out.println(String.format("%8s",Integer.toBinaryString(buffer.get(i))).replace(' ','0'));
-//    }
-
-//    ArrayList<Byte> readNeigh = packet.convertToMessage().readReceivedRoutingTable();
-//        for (int i = 0; i < readNeigh.size(); i++) {
-//        System.out.println(readNeigh.get(i));
-//    }
 
 
 /**

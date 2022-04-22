@@ -11,7 +11,7 @@ import java.util.ArrayList;
  *
  * Message type: DATA_SHORT
  */
-public class DiscoveryPacket implements Packet {
+public class DiscoveryPacket{
 
     private final int sourceIp;
     private ByteBuffer buffer;

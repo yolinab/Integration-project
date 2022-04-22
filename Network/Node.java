@@ -29,6 +29,7 @@ public class Node {
         sendingQueue = new LinkedBlockingQueue<>();
         new Client(serverIP, serverPort, frequency, receivedQueue, sendingQueue);
         ip = (new Random().nextInt((int) System.currentTimeMillis())) % 64;
+        if (ip == 0) {ip = (new Random().nextInt((int) System.currentTimeMillis())) % 64;}
     }
 
     /**
@@ -81,14 +82,14 @@ public class Node {
             this.sendingQueue = sendingQueue;
             sendPINGs = new sendPINGsThread();
             sendPONGs = new sendPONGsThread();
-//            sendRoutingInfo = new sendRoutingInfoThread();
+            sendRoutingInfo = new sendRoutingInfoThread();
         }
 
         @Override
         public void run() {
             sendPINGs.start();
             sendPONGs.start();
-//            sendRoutingInfo.start();
+            sendRoutingInfo.start();
             while (true) {
                 try {
                     Thread.sleep(15000);//TODO - deal with later
@@ -110,14 +111,11 @@ public class Node {
 
         private long timeInterval = 8000;
         boolean send;
-        //counts how many PINGs a node has sent, so overtime it can decrease the rate it's sending them at
-//        int counter;
 
         @Override
         public void run() {
             while (true) {
-                if (mediumIsFree && PONGsToSend.isEmpty()) {
-//                        System.out.println(getIp() + " is sending a PING.");
+                if (mediumIsFree) {
                     sendPING();
                 }
                 try {
@@ -142,13 +140,11 @@ public class Node {
      */
     public class sendPONGsThread extends Thread {
         private int timeInterval = 500;
-        private boolean send;
         @Override
         public void run() {
             while (true) {
                 try {
                     if (mediumIsFree && PONGsToSend.size() > 0) {
-//                            System.out.println(getIp() + " is sending a PONG.");
                         putMessageInSendingQueue(PONGsToSend.take());
                     }
                     Thread.sleep(timeInterval);
@@ -165,32 +161,32 @@ public class Node {
      *
      * Before it starts it waits 10 seconds so the nodes can first discover their neighbours.
      */
-//    public class sendRoutingInfoThread extends Thread {
-//
-//        @Override
-//        public void run() {
-//            //Before it sends it's first routing table, it waits 10 seconds
-//            //Updates neighbours about its routing table every 10 seconds
-//            try {
-//                Thread.sleep(10000);
-//            } catch (InterruptedException e) {
-//                System.err.println("Failed to send routing table.");
-//            }
-//
-//            while (true) {
-//                LinkStateRoutingPacket routingPacket = new LinkStateRoutingPacket(ip, routingTable);
-//                routingMessage = routingPacket.convertToMessage();
-//                try {
-//                    if (mediumIsFree && PONGsToSend.isEmpty()) {
-//                        putMessageInSendingQueue(routingMessage);
-//                        Thread.sleep(10000);
-//                    }
-//                } catch (InterruptedException e) {
-//                    System.out.println("Node failed to send routing info " + e);
-//                }
-//            }
-//        }
-//    }
+    public class sendRoutingInfoThread extends Thread {
+        LinkStateRoutingPacket routingPacket;
+        @Override
+        public void run() {
+            //Before it sends it's first routing table, it waits 10 seconds
+            //Updates neighbours about its routing table every 10 seconds
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                System.err.println("Failed to send routing table.");
+            }
+
+            while (true) {
+                routingPacket = new LinkStateRoutingPacket(ip, routingTable);
+                routingMessage = routingPacket.convertToMessage();
+                try {
+                    if (mediumIsFree && PONGsToSend.isEmpty()) {
+                        putMessageInSendingQueue(routingMessage);
+                        Thread.sleep(10000);
+                    }
+                } catch (InterruptedException e) {
+                    System.out.println("Node failed to send routing info " + e);
+                }
+            }
+        }
+    }
 
     //---------------------------------------------- End of sending threads ----------------------------------------------//
 
@@ -219,7 +215,6 @@ public class Node {
                         case DATA_SHORT -> {
                             //------------------- RECEIVING A PING -------------------//    //[sender of PING] + [01000000]
                             if (m.getData().get(1) == 64) {                                 //only if is message is SYN, send a response
-//                                System.out.println(getIp() + " received a PING. ");
                                 if (m.getData().get(0) == getIp()) {                        //if the sender has the same ip as us, we change ours
                                     ip =(new Random().nextInt((int) System.currentTimeMillis())) % 64;
                                     System.out.println("Someone has the same IP as us, so we changed ours to: " + ip);
@@ -238,29 +233,16 @@ public class Node {
                         case DATA -> {
                             ByteBuffer buffer = m.getData();
                             //------------------- RECEIVING ROUTING TABLE -------------------//
-//                            if (buffer.get(1) >> (byte) 4 == 4) {
-//
-//                                for (int i = 0; i < 5; i++) {
-//                                    System.out.println(String.format("%8s",Integer.toBinaryString(buffer.get(i) & 0xFF)).replace(' ', '0'));
-//                                }
-//                                ArrayList<Byte> senderNeighbours = m.readReceivedRoutingTable();
-//                                ArrayList<Byte> ourNeighbours = getNodesInRange();
-//                                //FIRST --- add only the destinations we currently don't have in range with next hop - the sender of the routing table
-//                                for (Byte senderNeighbour : senderNeighbours) {
-//                                    routingTable.putIfAbsent(senderNeighbour, buffer.get(0));
-//                                }
-//                                //SECOND - check if the nodes that are the same as in our routing table, we are still in direct contact with by checking if we have received a PONG from them recently
-//                                for (Byte ourNeighbour : ourNeighbours) {
-//                                    for (Byte senderNeighbour : senderNeighbours) {
-//                                        if (ourNeighbour.equals(senderNeighbour)) {
-//
-//                                            if (!hasRecentlyReceivedPONG(ourNeighbour)) {            //if we haven't received a PONG from that IP, update it
-//                                                routingTable.put(ourNeighbour, buffer.get(0));    //with next hop being the sender of the routing table\
-//                                            }
-//                                        }
-//                                    }
-//                                }
-//                            }
+                            if (buffer.get(0) != getIp() && buffer.get(1) >> (byte) 4 == 4) {
+
+                                ArrayList<Byte> senderNeighbours = m.readReceivedRoutingTable();
+                                //--- add to our table only the destinations we currently don't have in range with next hop being the sender of the routing table
+                                for (Byte senderNeighbour : senderNeighbours) {
+                                    if (!getRoutingTable().containsKey(senderNeighbour) && senderNeighbour != getIp()) {
+                                        routingTable.put(senderNeighbour, buffer.get(0));
+                                    }
+                                }
+                            }
                             //------------------- RECEIVING A FORWARDED MESSAGE -------------------//
                             if (buffer.get(1) == getIp()) {
                                 System.out.println("Message from: " + buffer.get(0) + "...");
@@ -270,11 +252,11 @@ public class Node {
                                 System.out.println();
                             }
                             //------------------- RECEIVING MESSAGE WITH TTL 0 -------------------//
-                            else if (buffer.get(3) == 0){
+                            else if (buffer.get(1) < 64 && buffer.get(3) == 0){
                                 //do nothing / discard packet
                             }
                             //------------------- RECEIVING MESSAGE NOT INTENDED FOR US -------------------//
-                            else if (buffer.get(0) != getIp()){
+                            else if (buffer.get(1) < 64 && buffer.get(0) != getIp()){//not a routing packet + not for us
                                 System.out.println(getIp() + " forwarding a message toward " + buffer.get(1));
                                 System.out.println("TTL = " + buffer.get(3));
                                 putMessageInSendingQueue(m.decrementTTL());

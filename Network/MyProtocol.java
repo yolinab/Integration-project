@@ -18,7 +18,7 @@ public class MyProtocol{
 
     private static final String SERVER_IP = "netsys.ewi.utwente.nl";
     private static final int SERVER_PORT = 8954;
-    private static final int frequency = 5301;
+    private static final int frequency = 5300;
 
     private boolean online;
     Node node;
@@ -95,7 +95,7 @@ public class MyProtocol{
                     for (int i = 0; i < getNodeRoutingTable().size(); i++) {
                         System.out.println("Node:" + getNodeRoutingTable().get(i));
                     }
-                    Thread.sleep(15000);
+                    Thread.sleep(10000);
                     node.updateRoutingTable();
                 }catch (InterruptedException e) {
                     System.err.println("Failed to send updated neighbours list.");
