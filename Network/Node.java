@@ -1,218 +1,322 @@
 package Network;
 
 import Packets.DiscoveryPacket;
+import Packets.LinkStateRoutingPacket;
 import client.Client;
 import client.Message;
 import client.MessageType;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class Node {
-
     private int ip;
     private boolean mediumIsFree;
+    private BlockingQueue<Message> PONGsToSend;
+    private ArrayList<Byte> recentlyReceived;
+    public BlockingQueue<Message> forwardingMessages;
+    private String receivedMessage;
+    private ArrayList<Byte> ourNeighbours;
 
-    private static String SERVER_IP = "netsys.ewi.utwente.nl"; //"127.0.0.1";
-    private static int SERVER_PORT = 8954;
-    private static int frequency = 5301;
-
-    public BlockingQueue<Message> receivedDataQueue;
-    public BlockingQueue<Message> receivedShortDataQueue;
-//    public BlockingQueue<Message> mediumState;
-
-    public BlockingQueue<Message> ACKsToSend;
-
-    public ArrayList<Byte> neighbours;
-
-    public Message discoveryMessage;
+    //ROUTING TABLE -> key - destination | value - next hop
+    private ArrayList<Byte> routingTable;
+    private Message routingMessage;
 
     private BlockingQueue<Message> receivedQueue;
     private BlockingQueue<Message> sendingQueue;
 
-    public Node() {
-        ip = (new Random().nextInt((int) System.currentTimeMillis())) % 64;//mod 64 so it fits is 6 bits
+    public Node(String serverIP, int serverPort, int frequency) {
+        receivedQueue = new LinkedBlockingQueue<>();
+        sendingQueue = new LinkedBlockingQueue<>();
+        new Client(serverIP, serverPort, frequency, receivedQueue, sendingQueue);
+        ip = (new Random().nextInt((int) System.currentTimeMillis())) % 64;
+        if (ip == 0) {ip = (new Random().nextInt((int) System.currentTimeMillis())) % 64;}
+    }
 
-        receivedQueue = new LinkedBlockingQueue<Message>();
-        sendingQueue = new LinkedBlockingQueue<Message>();
-//        mediumState = new LinkedBlockingQueue<Message>();
-        ACKsToSend = new LinkedBlockingQueue<Message>();
+    /**
+     * Starts the discovery and routing sequences of a Node.(if transmit thread is started)
+     */
+    public void initialize() {
         mediumIsFree = false;
+        PONGsToSend = new LinkedBlockingQueue<>();
+        recentlyReceived = new ArrayList<>();
+        routingTable = new ArrayList<>();
+        receivedMessage = "";
+        ourNeighbours = new ArrayList<>();
+        forwardingMessages = new LinkedBlockingQueue<>();
 
-        neighbours = new ArrayList<>(3);
-
-        new Client(SERVER_IP, SERVER_PORT, frequency, receivedQueue, sendingQueue); // Give the client the Queues to use
-
-        //has to be started before transmit thread, so mediumState is not null - has to contain at least MessageType.HELLO
-        new receiveThread(receivedQueue).start(); // Start thread to handle received messages!
-
-        DiscoveryPacket discoveryPacket = new DiscoveryPacket(this.getIp());                        //creates discovery packet upon initialization
-        discoveryPacket.makeSYN();
-
-        discoveryMessage = discoveryPacket.convertToMessage();
+        new receiveThread(receivedQueue).start();
 
         new transmitThread(sendingQueue).start();
     }
 
-    //------------------------- Start of transmit thread -----------------------//
+
+    /**
+     * Placing messages in the sending queue is done ONLY by using this method.
+     * By avoiding race conditions, we ensure fair queueing.
+     *
+     * @param message Message to be sent
+     */
+    public synchronized void putMessageInSendingQueue(Message message) {
+        try {
+            sendingQueue.put(message);
+        } catch (InterruptedException e) {
+            System.err.println("Failed to put message in sending queue." + e);
+        }
+    }
+
+    /**
+     * Puts a PING Message in the sending queue.
+     */
+    private synchronized void sendPING() {
+        putMessageInSendingQueue(new DiscoveryPacket(ip).convertToMessage());
+    }
+
+    //---------------------------------------------- Start of sending threads ----------------------------------------------//
+    /**
+     * Thread for starting the initialisation sequence of a Node.
+     */
     private  class transmitThread extends Thread {
         private BlockingQueue<Message> sendingQueue;
-        private Message message;
+        private Thread sendPINGs;
+        private Thread sendPONGs;
+        private Thread sendRoutingInfo;
 
         public transmitThread(BlockingQueue<Message> sendingQueue){
             super();
             this.sendingQueue = sendingQueue;
+            sendPINGs = new sendPINGsThread();
+            sendPONGs = new sendPONGsThread();
+            sendRoutingInfo = new sendRoutingInfoThread();
         }
 
-        /**
-         * Method that is called only once, immediately after a node joins the network
-         * to broadcasts its discovery message.
-         */
-        private void sendDiscoveryMessage() {
-            putMessageInQueue(discoveryMessage);
-        }
-
-        /**
-         * Placing messages in the sending queue is done only by using this method
-         * to avoid mistakes and to centralize the operation
-         * @param msgToPutInSendingQueue message to be sent
-         */
-        private void putMessageInQueue(Message msgToPutInSendingQueue) {
-            try {
-                sendingQueue.put(msgToPutInSendingQueue);
-            } catch (InterruptedException e) {
-                System.err.println("Failed to put message in sending queue." + e);
-            }
-        }
-
+        @Override
         public void run() {
-            //if the last message in the medium state queue is HELLO => we are the first node to join the network?,
-            //then we immediately start sending our discovery message
-            if (ACKsToSend.isEmpty()) {
-                System.out.println(getIp() + " is sending a SYN");
-                sendDiscoveryMessage();
+            sendPINGs.start();
+            sendPONGs.start();
+            sendRoutingInfo.start();
+        }
+    }
+
+    /**
+     * A separate thread for sending a Nodes routing information at a specified time interval.
+     *
+     * Before it starts it waits 10 seconds so the nodes can first discover their neighbours.
+     */
+    public class sendRoutingInfoThread extends Thread {
+        LinkStateRoutingPacket routingPacket;
+        @Override
+        public void run() {
+            //Before it sends it's first routing table, it waits 10 seconds
+            //Updates neighbours about its routing table every 10 seconds
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                System.err.println("Failed to send routing table.");
+            }
+            if (mediumIsFree && canSend(8)) {
+                //System.out.println(getIp() + " is sending a PING ");
+                sendPING();
             }
             while (true) {
-                //If we have received SYNs, send ACKs
                 try {
-                    if (mediumIsFree && ACKsToSend.size() > 0) {
-                        System.out.println(getIp() + " is sending an ACK");
-                        putMessageInQueue(ACKsToSend.take());
+
+                    if (mediumIsFree && !forwardingMessages.isEmpty()) {
+                        if (canSend(15)) {
+                            putMessageInSendingQueue(forwardingMessages.take());
+                        }
+                        Thread.sleep(500);
                     }
-                    Thread.sleep(1000);         //if medium is busy wait 1 second
+
+//                    routingPacket = new LinkStateRoutingPacket(ip, cloneArrayList(ourNeighbours));
+//                    routingMessage = routingPacket.convertToMessage();
+//                    if (mediumIsFree && canSendPing(100000)) {
+//                        System.out.println(getIp() + " is sending a Routing Message ");
+//                        putMessageInSendingQueue(routingMessage);
+//                        Thread.sleep(5000);
+//                    }
+
                 } catch (InterruptedException e) {
-                    System.out.println("Failed to send an ACK " + e);
+                    System.out.println("Node failed to send routing info " + e);
+                }
+            }
+        }
+    }
+    /**
+     * A separate thread for broadcasting PING messages.
+     *
+     * It is used in the discovery phase to determine the nodes that are in range,
+     * and keeps running to adapt to change in network topology.
+     */
+    public class sendPINGsThread extends Thread {
+
+        private long timeInterval = 1000;
+
+        @Override
+        public void run() {
+            while (true) {
+                if (mediumIsFree && canSend(8)) {
+                    System.out.println(getIp() + " is sending a PING ");
+                    sendPING();
+                }
+                try {
+                    Thread.sleep(timeInterval);
+                } catch (InterruptedException e) {
+                    System.err.println("Failed to send PING " + e);
+                    break;
+                }
+                timeInterval = timeInterval + 1000;
+                if (timeInterval > 10000) {
+                    timeInterval = 5000;
+                }
+            }
+        }
+    }
+
+    /**
+     * A separate thread for responding to PING messages.
+     *
+     * It is used in the discovery phase to determine the nodes that are in range,
+     * and keeps running to adapt to change in network topology.
+     */
+    public class sendPONGsThread extends Thread {
+        private int timeInterval = 5000;
+        @Override
+        public void run() {
+            while (true) {
+                try {
+                    if (mediumIsFree && PONGsToSend.size() > 0 && canSend(8)) {
+                        System.out.println(getIp() + " is sending a PONG ");
+                        putMessageInSendingQueue(PONGsToSend.take());
+                    }
+                    Thread.sleep(timeInterval);
+                } catch (InterruptedException e) {
+                    System.out.println("Failed to send data. " + e);
                     break;
                 }
             }
         }
-
-//        private Message consoleInput() {
-//            try {
-//                BufferedReader inp = new BufferedReader(new InputStreamReader(System.in));
-//                String input = "";
-//                while (true) {
-//                    input = inp.readLine(); // read input
-//                    byte[] inputBytes = input.getBytes(); // get bytes from input
-//                    ByteBuffer toSend = ByteBuffer.allocate(inputBytes.length); // make a new byte buffer with the length of the input string
-//                    toSend.put(inputBytes, 0, inputBytes.length); // copy the input string into the byte buffer.
-//                    Message msg;
-//                    if ((input.length()) > 2) {
-//                        msg = new Message(MessageType.DATA, toSend);
-//                    } else {
-//                        msg = new Message(MessageType.DATA_SHORT, toSend);
-//                    }
-//                    return msg;
-//                }
-//            } catch (IOException e) {
-//                System.err.println("Failed to get input from the console. " + e);
-//            }
-//            //DANGER!!!//TODO fix this shit
-//            return null;
-//        }
     }
-    //------------------------- End of transmit thread -----------------------//
+
+    //---------------------------------------------- End of sending threads ----------------------------------------------//
 
 
-    //------------------------- Start of receive thread -----------------------//
+    //---------------------------------------------- Start of receive thread ----------------------------------------------//
     private class receiveThread extends Thread {
         private BlockingQueue<Message> receivedQueue;
-        private BlockingQueue<Message> pendingACKs;
-//        private BlockingQueue<Message> lastReceivedMediumState;
 
         public receiveThread(BlockingQueue<Message> receivedQueue){
             super();
             this.receivedQueue = receivedQueue;
-            receivedDataQueue = new LinkedBlockingQueue<>();
-            receivedShortDataQueue = new LinkedBlockingQueue<>();
-            pendingACKs = ACKsToSend;
-//            lastReceivedMediumState = mediumState;
         }
 
-        public void printByteBuffer(ByteBuffer bytes, int bytesLength){
-            for(int i=0; i<bytesLength; i++){
-                System.out.print(  ( bytes.get(i) ) );
-//                System.out.println(String.format("%8s",Integer.toBinaryString(bytes.get(i))).replace(' ','0'));
-            }
-            System.out.println();
-        }
-
-        //print received messages
         public void run() {
             while (true) {
                 try {
                     Message m = receivedQueue.take();
                     MessageType type = m.getType();
                     switch (type) {
+                        case DATA_SHORT -> {
+                            if (!(m.getData().get(0) == getIp())) {
+                                recentlyReceived.add(m.getData().get(0));                          //keep track of all the IPs we recently
+                                if (!routingTable.contains(m.getData().get(0))) {                  //received a message from
+                                    routingTable.add(m.getData().get(0));
+                                }
+                            }
+                            //------------------- RECEIVING A PING -------------------//    //[sender of PING] + [01000000]
+                            if (m.getData().get(1) == 64) {                                 //only if is message is SYN, send a response
+                                if (m.getData().get(0) == getIp()) {                        //if the sender has the same ip as us, we change ours
+                                    System.out.println(getIp() + " received a PING from " + m.getData().get(0));
+                                    ip =(new Random().nextInt((int) System.currentTimeMillis())) % 64;
+                                    System.out.println("Someone has the same IP as us, so we changed ours to: " + ip);
+                                    sendPING();
+                                } else if(m.getData().get(0) != getIp()) {
+                                    PONGsToSend.put(m.respondToDiscoverySYN((byte) getIp()));
+                                }
+                            }
+                            //------------------- RECEIVING A PONG -------------------//
+                            else if ((m.getData().get(1))  == (byte) (getIp() + 128)) { //if message is ACK, just add to neighbour's map
+                                System.out.println(getIp() + " received a PONG from " + m.getData().get(0));
+                            }
+                        }
+                        case DATA -> {
+                            if (!(m.getData().get(0) == getIp())) {
+                                recentlyReceived.add(m.getData().get(0));
+                                if (!routingTable.contains(m.getData().get(0))) {
+                                    routingTable.add(m.getData().get(0));
+                                }
+                            }
+                            ByteBuffer buffer = m.getData();
+                            //------------------- RECEIVING ROUTING TABLE -------------------//
+                            if (buffer.get(0) != getIp() && buffer.get(1) >> (byte) 4 == 4) {
+                                ArrayList<Byte> senderNeighbours = m.readReceivedRoutingTable();
+                                //--- add to our table only the destinations we currently don't have in range with next hop being the sender of the routing table
+                                for (Byte senderNeighbour : senderNeighbours) {
+                                    if (!routingTable.contains(senderNeighbour) && senderNeighbour != getIp()) {
+                                        routingTable.add(senderNeighbour);
+                                    }
+                                }
+                                for (Byte key: cloneArrayList(ourNeighbours)) {
+                                    if (!hasRecentlyReceivedPONG(key)) {
+                                        routingTable.remove(key);
+                                        ourNeighbours.remove(key);
+                                    }
+                                }
+                            }
+                            //------------------- RECEIVING A FORWARDED MESSAGE -------------------//
+                            if (buffer.get(1) == getIp()) {
+
+                                int seq = m.getData().get(4) >> 4 ;
+                                int sw = m.getData().get(4) - (((byte) seq) << 4);
+
+                                String payload = "";
+
+                                for (int i = 5; i < buffer.get(2) + 5; i++) {               //build the single message
+                                    if (buffer.get(i) != (byte) 0) {
+                                        payload = payload + ((char) buffer.get(i));
+                                    }
+                                }
+                                if (sw == 1) {              //if sending window is 1 print the single message
+                                    System.out.println("Message from: " + buffer.get(0) + "...");
+                                    System.out.println(payload + "\n");
+                                }else {
+                                    if (seq == sw) {
+                                        receivedMessage = receivedMessage.concat(payload);
+                                        System.out.println("Message from: " + buffer.get(0) + "...");
+                                        System.out.println(receivedMessage + "\n");            //the message is formed
+                                        receivedMessage = "";          //clear the String for the next message
+                                    } else if (seq < sw){              //append the new message to form the whole text
+                                        receivedMessage = receivedMessage.concat(payload);
+                                    }
+                                }
+                            }
+                            //------------------- RECEIVING MESSAGE WITH TTL 0 -------------------//
+                            else if (buffer.get(1) < 64 && buffer.get(3) == 0){
+                                //do nothing / discard packet
+                            }
+                            //------------------- RECEIVING MESSAGE NOT INTENDED FOR US -------------------//
+                            else if (buffer.get(1) < 64 && buffer.get(0) != getIp()){//not a routing packet + not for us
+//                                System.out.println(getIp() + " forwarding a message toward " + buffer.get(1));
+//                                System.out.println("TTL = " + buffer.get(3));
+//                                System.out.println("We set the TTL to: " + m.getData().get(3));
+                                forwardingMessages.put(m.decrementTTL(buffer));
+                            }
+                        }
                         case HELLO -> {
                             System.out.println("HELLO");
                             mediumIsFree = true;
                         }
-                        case DATA_SHORT -> {
-                            //while (neighbours.size < 4)? - when do we know to stop receiving discovery messages
-                            System.out.print("DATA_SHORT: ");
-                            printByteBuffer(m.getData(), m.getData().capacity()); //Just print the data
-                            receivedShortDataQueue.put(m);
-
-                            if (m.getData().get(1) == 64) {         //only if is message is SYN, send a response
-
-//                                sendingQueue.put(m.respondToSYN((byte) getIp()));   //send a response
-
-                                ACKsToSend.put(m.respondToSYN((byte) getIp()));     //send a response through sending thread
-
-                                neighbours.add(m.getData().get(0));                 //add source IP to neighbours list
-
-
-                                System.out.print("ACK from " + getIp() + ":");
-                                printByteBuffer(m.getData(), 2);
-                                System.out.println("Pending ACKS size " + pendingACKs.size());
-                                System.out.println("ACKs to send: " + ACKsToSend.size());
-
-                            } else if ((m.getData().get(1)) >> 6 == 0) {   //if message is ACK, just add to neighbour's list
-                                neighbours.add(m.getData().get(1));        //add the second byte to neighbour's list
-                            }
-                        }
                         case FREE -> {
-                            System.out.println("FREE");
                             mediumIsFree = true;
                         }
                         case BUSY -> {
-                            System.out.println("BUSY");
                             mediumIsFree = false;
                         }
-                        case DATA -> {
-                            System.out.print("DATA: ");
-                            printByteBuffer(m.getData(), m.getData().capacity()); //Just print the data
-                            receivedDataQueue.put(m);
+                        case SENDING -> mediumIsFree = false;
+                        case DONE_SENDING -> {
                         }
-                        case SENDING -> System.out.println("SENDING");
-                        case DONE_SENDING -> System.out.println("DONE_SENDING");
                         case END -> {
                             System.out.println("END");
                             System.exit(0);
@@ -224,10 +328,42 @@ public class Node {
             }
         }
     }
-    //------------------------- End of receive thread -----------------------//
+    //---------------------------------------------- End of receive thread ----------------------------------------------//
 
     public int getIp() {
         return ip;
+    }
+
+    public ArrayList<Byte> getRoutingTable() {
+        return routingTable;
+    }
+
+    public synchronized boolean hasRecentlyReceivedPONG(byte IP){
+        int i = 1;
+        while (i < 10) {
+            if (i <= recentlyReceived.size() && recentlyReceived.get(recentlyReceived.size() - i).equals(IP)) {
+                return true;
+            }
+            i++;
+        }
+        if (recentlyReceived.size() == 10) {
+            recentlyReceived.clear();
+        }
+        return false;
+    }
+
+    /**
+     * For every method call, returns true with a probability of 16%.
+     *
+     * @return true if a newly generated random number between 0 and 5 is equal to zero
+     */
+    private boolean canSend(int n) {
+        return new Random().nextInt(n)==5;
+    }
+
+    public synchronized ArrayList<Byte> cloneArrayList(ArrayList<Byte> rt){
+        rt.clone();
+        return rt;
     }
 }
 
